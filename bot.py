@@ -4,7 +4,8 @@ import random
 import asyncio
 
 import os
-TOKEN = os.environ.get("TOKEN")
+TOKEN = os.environ.get("DISCORD_TOKEN")
+
 
 
 
