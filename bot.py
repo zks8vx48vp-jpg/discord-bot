@@ -3,7 +3,11 @@ from discord.ext import commands
 import random
 import asyncio
 
-TOKEN =  "MTQ5MTU2ODcyOTYxMDM4NzYzNw.GMMuIL.RbTjnIcoGjsVshVz2-6ynLoRKrOITsiNt5oZr8"
+import os
+TOKEN = os.environ.get("TOKEN")
+
+
+
 
 intents = discord.Intents.default()
 intents.message_content = True
