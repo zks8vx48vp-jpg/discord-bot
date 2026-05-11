@@ -3,7 +3,9 @@ from discord.ext import commands
 import random
 import asyncio
 
-TOKEN = "MTQ5MTU2ODcyOTYxMDM4NzYzNw.Gv3KGX.aeJaIBQb2xzEHztozKCA0cvyA5JLzy3BbBfuIw"
+import os
+TOKEN = os.environ.get("DISCORD_TOKEN")
+
 
 
 
