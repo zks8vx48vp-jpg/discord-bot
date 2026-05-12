@@ -14,13 +14,12 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 games = {}
 
 
-# 🚀 تشغيل البوت
 @bot.event
 async def on_ready():
     print(f"البوت شغال: {bot.user}")
 
 
-# 🎮 إنشاء اللعبة
+# 🎮 إنشاء اللعبة (مرحلة الإعداد)
 @bot.command(name="العبة")
 async def create_game(ctx):
 
@@ -31,17 +30,18 @@ async def create_game(ctx):
         "max": 6,
         "killers": 1,
         "doctors": 1,
+        "stage": "setup",
         "message": None
     }
 
-    msg = await ctx.send("🐺 تحميل لعبة المستذئب...", view=SetupView())
+    msg = await ctx.send("⚙️ إعداد اللعبة...", view=SetupView())
 
     games[gid]["message"] = msg
 
-    await update_ui(gid)
+    await update_setup(gid)
 
 
-# ⚙️ لوحة التحكم
+# ⚙️ مرحلة الإعداد (+ و -)
 class SetupView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -52,8 +52,7 @@ class SetupView(discord.ui.View):
 
         g = games[interaction.guild.id]
         g["max"] += 1
-
-        await update_ui(interaction.guild.id)
+        await update_setup(interaction.guild.id)
 
 
     # ➖ لاعب
@@ -63,8 +62,7 @@ class SetupView(discord.ui.View):
         g = games[interaction.guild.id]
         if g["max"] > 3:
             g["max"] -= 1
-
-        await update_ui(interaction.guild.id)
+        await update_setup(interaction.guild.id)
 
 
     # ➕ قاتل
@@ -73,8 +71,7 @@ class SetupView(discord.ui.View):
 
         g = games[interaction.guild.id]
         g["killers"] += 1
-
-        await update_ui(interaction.guild.id)
+        await update_setup(interaction.guild.id)
 
 
     # ➕ طبيب
@@ -83,11 +80,43 @@ class SetupView(discord.ui.View):
 
         g = games[interaction.guild.id]
         g["doctors"] += 1
+        await update_setup(interaction.guild.id)
 
-        await update_ui(interaction.guild.id)
+
+    # ✅ تأكيد الإعدادات
+    @discord.ui.button(label="✅ تأكيد", style=discord.ButtonStyle.success)
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+        g = games[interaction.guild.id]
+
+        g["stage"] = "lobby"
+
+        await update_lobby(interaction.guild.id)
 
 
-    # 🎮 انضمام
+# 🔁 تحديث صفحة الإعدادات
+async def update_setup(gid):
+
+    g = games[gid]
+
+    text = f"""
+⚙️ **إعداد اللعبة**
+
+👥 اللاعبين: {g['max']}
+☠️ قتلة: {g['killers']}
+💊 أطباء: {g['doctors']}
+
+اضبط الإعدادات ثم اضغط تأكيد
+"""
+
+    await g["message"].edit(content=text, view=SetupView())
+
+
+# 🎮 لوبي الانضمام
+class LobbyView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
     @discord.ui.button(label="🎮 انضمام", style=discord.ButtonStyle.green)
     async def join(self, interaction: discord.Interaction, button: discord.ui.Button):
 
@@ -97,17 +126,16 @@ class SetupView(discord.ui.View):
             return await interaction.response.send_message("⚠️ أنت داخل", ephemeral=True)
 
         if len(g["players"]) >= g["max"]:
-            return await interaction.response.send_message("❌ اللوبي ممتلئ", ephemeral=True)
+            return await interaction.response.send_message("❌ ممتلئ", ephemeral=True)
 
         g["players"].append(interaction.user)
 
         await interaction.response.send_message("✅ انضممت", ephemeral=True)
 
-        await update_ui(interaction.guild.id)
+        await update_lobby(interaction.guild.id)
 
 
-    # 🚪 مغادرة
-    @discord.ui.button(label="🚪 مغادرة", style=discord.ButtonStyle.gray)
+    @discord.ui.button(label="🚪 مغادرة", style=discord.ButtonStyle.red)
     async def leave(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         g = games[interaction.guild.id]
@@ -117,18 +145,18 @@ class SetupView(discord.ui.View):
 
         await interaction.response.send_message("🚪 خرجت", ephemeral=True)
 
-        await update_ui(interaction.guild.id)
+        await update_lobby(interaction.guild.id)
 
 
-# 🔁 تحديث الرسالة
-async def update_ui(gid):
+# 🔁 تحديث اللوبي
+async def update_lobby(gid):
 
     g = games[gid]
 
     text = f"""
-🐺 **لعبة المستذئب**
+🐺 **لعبة المستذئب (لوبي)**
 
-👥 اللاعبين: {len(g['players'])}/{g['max']}
+👥 {len(g['players'])}/{g['max']}
 ☠️ قتلة: {g['killers']}
 💊 أطباء: {g['doctors']}
 
@@ -141,13 +169,7 @@ async def update_ui(gid):
         for p in g["players"]:
             text += f"• {p.mention}\n"
 
-    await g["message"].edit(content=text, view=SetupView())
-
-
-# ▶️ أمر اختبار
-@bot.command()
-async def ping(ctx):
-    await ctx.send("pong")
+    await g["message"].edit(content=text, view=LobbyView())
 
 
 bot.run(TOKEN)
