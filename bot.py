@@ -1,6 +1,6 @@
 import discord
 from discord.ext import commands
-from discord.ui import View, Button
+from discord.ui import View
 import os
 
 TOKEN = os.environ.get("DISCORD_TOKEN")
@@ -31,16 +31,17 @@ async def create_game(ctx):
         "max": 6,
         "killers": 1,
         "doctors": 1,
-        "message": None,
-        "started": False
+        "message": None
     }
 
-    msg = await ctx.send("🐺 جاري إعداد لعبة المستذئب...", view=SetupView())
+    msg = await ctx.send("🐺 تحميل لعبة المستذئب...", view=SetupView())
 
     games[gid]["message"] = msg
 
+    await update_ui(gid)
 
-# ⚙️ لوحة التحكم (الأزرار + و -)
+
+# ⚙️ لوحة التحكم
 class SetupView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -143,7 +144,10 @@ async def update_ui(gid):
     await g["message"].edit(content=text, view=SetupView())
 
 
-# ▶️ (جاهز لاحقًا للبدء)
-@bot.command(name="ابدأ")
-async def start(ctx):
-    await ctx.send("🚀 جاهز نضيف نظام اللعب بعد اللوبي")
+# ▶️ أمر اختبار
+@bot.command()
+async def ping(ctx):
+    await ctx.send("pong")
+
+
+bot.run(TOKEN)
