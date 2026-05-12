@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands
+from discord.ui import View, Button
 import random
 import os
 
@@ -14,6 +15,12 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 games = {}
 
 
+# 🎮 بدء البوت
+@bot.event
+async def on_ready():
+    print(f"البوت شغال: {bot.user}")
+
+
 # 🎮 بدء اللعبة
 @bot.command(name="العبة")
 async def start_game(ctx):
@@ -26,8 +33,6 @@ async def start_game(ctx):
         "players": [],
         "roles": {},
         "alive": [],
-        "phase": "lobby",
-        "channel": ctx.channel,
         "killed": None,
         "healed": None,
         "votes": {}
@@ -50,12 +55,10 @@ async def join(ctx):
     await ctx.send(f"✅ انضم {ctx.author.mention}")
 
 
-# 📜 بدء وتوزيع أدوار
+# 📜 توزيع الأدوار
 @bot.command(name="ابدأ")
 async def start(ctx):
     g = games.get(ctx.guild.id)
-    if not g:
-        return
 
     players = g["players"]
 
@@ -74,56 +77,65 @@ async def start(ctx):
         except:
             pass
 
-    g["phase"] = "night"
-    await ctx.send("🌙 بدأت اللعبة - الليل بدأ!")
+    await ctx.send("🌙 بدأت اللعبة - الليل بدأ! اكتب !ليل")
 
 
-# ☠️ قتل
-@bot.command(name="قتل")
-async def kill(ctx, member: discord.Member):
-    g = games.get(ctx.guild.id)
+# 🌙 أزرار الليل
+class NightView(View):
+    def __init__(self, guild_id):
+        super().__init__(timeout=60)
+        self.guild_id = guild_id
 
-    if g["roles"].get(ctx.author) != "قاتل":
-        return await ctx.send("❌ مو أنت القاتل")
+    @discord.ui.button(label="☠️ قتل", style=discord.ButtonStyle.red)
+    async def kill(self, interaction: discord.Interaction, button: Button):
+        g = games[self.guild_id]
 
-    g["killed"] = member
-    await ctx.send("☠️ تم اختيار ضحية")
+        if g["roles"].get(interaction.user) != "قاتل":
+            return await interaction.response.send_message("❌ مو أنت القاتل", ephemeral=True)
+
+        g["killed"] = interaction.user
+        await interaction.response.send_message("☠️ تم اختيار الضحية", ephemeral=True)
+
+    @discord.ui.button(label="💊 علاج", style=discord.ButtonStyle.green)
+    async def heal(self, interaction: discord.Interaction, button: Button):
+        g = games[self.guild_id]
+
+        if g["roles"].get(interaction.user) != "طبيب":
+            return await interaction.response.send_message("❌ مو أنت الطبيب", ephemeral=True)
+
+        g["healed"] = interaction.user
+        await interaction.response.send_message("💊 تم اختيار العلاج", ephemeral=True)
 
 
-# 💊 علاج
-@bot.command(name="علاج")
-async def heal(ctx, member: discord.Member):
-    g = games.get(ctx.guild.id)
-
-    if g["roles"].get(ctx.author) != "طبيب":
-        return await ctx.send("❌ مو أنت الطبيب")
-
-    g["healed"] = member
-    await ctx.send("💊 تم اختيار علاج")
-
-
-# 🌅 إنهاء الليل → حساب النتائج
-@bot.command(name="نهار")
-async def day(ctx):
+# 🌙 تشغيل الليل
+@bot.command(name="ليل")
+async def night(ctx):
     g = games.get(ctx.guild.id)
     if not g:
         return
 
+    view = NightView(ctx.guild.id)
+
+    await ctx.send("🌙 الليل بدأ... استخدم الأزرار 👇", view=view)
+
+
+# 🌅 النهار
+@bot.command(name="نهار")
+async def day(ctx):
+    g = games.get(ctx.guild.id)
+
     killed = g["killed"]
     healed = g["healed"]
-
-    result = ""
 
     if killed and killed != healed:
         if killed in g["alive"]:
             g["alive"].remove(killed)
-            result = f"☠️ مات {killed.mention}"
+        result = f"☠️ مات {killed.mention}"
     else:
         result = "💊 ما مات أحد"
 
     g["killed"] = None
     g["healed"] = None
-    g["phase"] = "day"
 
     await ctx.send(f"🌅 النهار بدأ\n{result}")
 
@@ -140,36 +152,36 @@ async def vote(ctx, member: discord.Member):
     await ctx.send(f"🗳️ صوتت لـ {member.mention}")
 
 
-# 🏁 إنهاء التصويت
+# ☠️ نتيجة التصويت
 @bot.command(name="نتيجة")
 async def result(ctx):
     g = games.get(ctx.guild.id)
 
     if not g["votes"]:
-        return await ctx.send("❌ ما فيه تصويت")
+        return await ctx.send("❌ ما في تصويت")
 
-    most_voted = max(g["votes"], key=g["votes"].get)
+    most = max(g["votes"], key=g["votes"].get)
 
-    if most_voted in g["alive"]:
-        g["alive"].remove(most_voted)
+    if most in g["alive"]:
+        g["alive"].remove(most)
 
     g["votes"] = {}
 
-    await ctx.send(f"☠️ تم إعدام {most_voted.mention}")
+    await ctx.send(f"☠️ تم إعدام {most.mention}")
 
 
-# 🏆 فوز
+# 🏁 فحص الفوز
 @bot.command(name="فحص")
-async def check_win(ctx):
+async def check(ctx):
     g = games.get(ctx.guild.id)
 
     killers = [p for p in g["alive"] if g["roles"].get(p) == "قاتل"]
-    civilians = [p for p in g["alive"] if g["roles"].get(p) != "قاتل"]
+    others = [p for p in g["alive"] if g["roles"].get(p) != "قاتل"]
 
     if len(killers) == 0:
         return await ctx.send("🏆 المدنيين فازوا!")
 
-    if len(killers) >= len(civilians):
+    if len(killers) >= len(others):
         return await ctx.send("🏆 القتلة فازوا!")
 
     await ctx.send("🎮 اللعبة مستمرة")
