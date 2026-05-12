@@ -1,9 +1,8 @@
 import discord
 from discord.ext import commands
 import random
-import asyncio
-
 import os
+
 TOKEN = os.environ.get("DISCORD_TOKEN")
 
 intents = discord.Intents.default()
@@ -14,91 +13,163 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 games = {}
 
-# تشغيل البوت
-@bot.event
-async def on_ready():
-    print(f"✅ اشتغل البوت: {bot.user}")
 
-# بدء اللعبة
-@bot.command(name="مافيا")
-async def mafia(ctx):
-    guild_id = ctx.guild.id
+# 🎮 بدء اللعبة
+@bot.command(name="العبة")
+async def start_game(ctx):
+    gid = ctx.guild.id
 
-    if guild_id in games:
-        await ctx.send("⚠️ فيه لعبة شغالة بالفعل")
-        return
+    if gid in games:
+        return await ctx.send("⚠️ في لعبة شغالة")
 
-    games[guild_id] = {
+    games[gid] = {
         "players": [],
-        "started": False
+        "roles": {},
+        "alive": [],
+        "phase": "lobby",
+        "channel": ctx.channel,
+        "killed": None,
+        "healed": None,
+        "votes": {}
     }
 
-    await ctx.send(
-        "🎭 بدأت لعبة المافيا!\n"
-        "اكتب !دخول عشان تدخل\n"
-        "الادمن يكتب !ابدأ لما يكتملون"
-    )
+    await ctx.send("🎮 بدأت اللعبة! اكتب !انضم")
 
-# دخول اللاعبين
-@bot.command(name="دخول")
+
+# ➕ انضمام
+@bot.command(name="انضم")
 async def join(ctx):
-    guild_id = ctx.guild.id
+    g = games.get(ctx.guild.id)
+    if not g:
+        return await ctx.send("❌ ما في لعبة")
 
-    if guild_id not in games:
-        await ctx.send("❌ مافيه لعبة شغالة")
-        return
+    if ctx.author in g["players"]:
+        return await ctx.send("⚠️ أنت داخل")
 
-    player = ctx.author
+    g["players"].append(ctx.author)
+    await ctx.send(f"✅ انضم {ctx.author.mention}")
 
-    if player in games[guild_id]["players"]:
-        await ctx.send("⚠️ انت داخل بالفعل")
-        return
 
-    games[guild_id]["players"].append(player)
-
-    await ctx.send(f"✅ دخل {player.mention}")
-
-# بدء توزيع الرتب
+# 📜 بدء وتوزيع أدوار
 @bot.command(name="ابدأ")
 async def start(ctx):
-    guild_id = ctx.guild.id
-
-    if guild_id not in games:
-        await ctx.send("❌ مافيه لعبة")
+    g = games.get(ctx.guild.id)
+    if not g:
         return
 
-    players = games[guild_id]["players"]
+    players = g["players"]
 
-    if len(players) < 4:
-        await ctx.send("⚠️ لازم 4 لاعبين على الأقل")
-        return
+    if len(players) < 3:
+        return await ctx.send("❌ لازم 3 لاعبين")
 
-    roles = ["قاتل", "طبيب"]
-    
-    while len(roles) < len(players):
-        roles.append("مدني")
-
+    roles = ["قاتل", "طبيب"] + ["مدني"] * (len(players) - 2)
     random.shuffle(roles)
 
-    for player, role in zip(players, roles):
+    g["alive"] = players.copy()
+
+    for i, p in enumerate(players):
+        g["roles"][p] = roles[i]
         try:
-            await player.send(f"🎭 رتبتك هي: **{role}**")
+            await p.send(f"🎭 دورك: {roles[i]}")
         except:
-            await ctx.send(f"❌ ما قدرت ارسل خاص لـ {player.name}")
+            pass
 
-    games[guild_id]["started"] = True
+    g["phase"] = "night"
+    await ctx.send("🌙 بدأت اللعبة - الليل بدأ!")
 
-    await ctx.send("🔥 بدأت اللعبة وتم توزيع الرتب بالخاص")
 
-# إنهاء اللعبة
-@bot.command(name="انهاء")
-async def end(ctx):
-    guild_id = ctx.guild.id
+# ☠️ قتل
+@bot.command(name="قتل")
+async def kill(ctx, member: discord.Member):
+    g = games.get(ctx.guild.id)
 
-    if guild_id in games:
-        del games[guild_id]
-        await ctx.send("🛑 انتهت اللعبة")
+    if g["roles"].get(ctx.author) != "قاتل":
+        return await ctx.send("❌ مو أنت القاتل")
+
+    g["killed"] = member
+    await ctx.send("☠️ تم اختيار ضحية")
+
+
+# 💊 علاج
+@bot.command(name="علاج")
+async def heal(ctx, member: discord.Member):
+    g = games.get(ctx.guild.id)
+
+    if g["roles"].get(ctx.author) != "طبيب":
+        return await ctx.send("❌ مو أنت الطبيب")
+
+    g["healed"] = member
+    await ctx.send("💊 تم اختيار علاج")
+
+
+# 🌅 إنهاء الليل → حساب النتائج
+@bot.command(name="نهار")
+async def day(ctx):
+    g = games.get(ctx.guild.id)
+    if not g:
+        return
+
+    killed = g["killed"]
+    healed = g["healed"]
+
+    result = ""
+
+    if killed and killed != healed:
+        if killed in g["alive"]:
+            g["alive"].remove(killed)
+            result = f"☠️ مات {killed.mention}"
     else:
-        await ctx.send("❌ مافيه لعبة شغالة")
+        result = "💊 ما مات أحد"
 
-bot.run(TOKEN)
+    g["killed"] = None
+    g["healed"] = None
+    g["phase"] = "day"
+
+    await ctx.send(f"🌅 النهار بدأ\n{result}")
+
+
+# 🗳️ تصويت
+@bot.command(name="تصويت")
+async def vote(ctx, member: discord.Member):
+    g = games.get(ctx.guild.id)
+
+    if ctx.author not in g["alive"]:
+        return await ctx.send("❌ أنت ميت")
+
+    g["votes"][member] = g["votes"].get(member, 0) + 1
+    await ctx.send(f"🗳️ صوتت لـ {member.mention}")
+
+
+# 🏁 إنهاء التصويت
+@bot.command(name="نتيجة")
+async def result(ctx):
+    g = games.get(ctx.guild.id)
+
+    if not g["votes"]:
+        return await ctx.send("❌ ما فيه تصويت")
+
+    most_voted = max(g["votes"], key=g["votes"].get)
+
+    if most_voted in g["alive"]:
+        g["alive"].remove(most_voted)
+
+    g["votes"] = {}
+
+    await ctx.send(f"☠️ تم إعدام {most_voted.mention}")
+
+
+# 🏆 فوز
+@bot.command(name="فحص")
+async def check_win(ctx):
+    g = games.get(ctx.guild.id)
+
+    killers = [p for p in g["alive"] if g["roles"].get(p) == "قاتل"]
+    civilians = [p for p in g["alive"] if g["roles"].get(p) != "قاتل"]
+
+    if len(killers) == 0:
+        return await ctx.send("🏆 المدنيين فازوا!")
+
+    if len(killers) >= len(civilians):
+        return await ctx.send("🏆 القتلة فازوا!")
+
+    await ctx.send("🎮 اللعبة مستمرة")
