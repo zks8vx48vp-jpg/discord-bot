@@ -3,7 +3,7 @@ from discord.ext import commands
 import random
 import asyncio
 
-TOKEN = "حط_توكن_البوت_هنا"
+TOKEN = "MTQ5MTU2ODcyOTYxMDM4NzYzNw.GzT2Cd.e2o1kQaJ5x2N2f4kBlkB8PiI4XFCEpproW_GR0"
 
 intents = discord.Intents.default()
 intents.message_content = True
