@@ -67,7 +67,7 @@ class AddRoleSelect(discord.ui.Select):
         ]
 
         super().__init__(
-            placeholder="إضافة +",
+            placeholder="اختر رتبة للإضافة",
             options=options
         )
 
@@ -105,7 +105,7 @@ class RemoveRoleSelect(discord.ui.Select):
         ]
 
         super().__init__(
-            placeholder="إزالة -",
+            placeholder="اختر رتبة للإزالة",
             options=options
         )
 
@@ -122,6 +122,28 @@ class RemoveRoleSelect(discord.ui.Select):
 
 
 # =========================
+# ➕ View الإضافة
+# =========================
+
+class AddView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=30)
+
+        self.add_item(AddRoleSelect())
+
+
+# =========================
+# ➖ View الإزالة
+# =========================
+
+class RemoveView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=30)
+
+        self.add_item(RemoveRoleSelect())
+
+
+# =========================
 # ⚙️ صفحة الإعداد
 # =========================
 
@@ -129,14 +151,47 @@ class SetupView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-        self.add_item(AddRoleSelect())
-        self.add_item(RemoveRoleSelect())
+    # ➕ إضافة
+    @discord.ui.button(
+        label="إضافة +",
+        style=discord.ButtonStyle.blurple,
+        row=0
+    )
+    async def add_button(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+
+        await interaction.response.send_message(
+            "اختر رتبة للإضافة",
+            view=AddView(),
+            ephemeral=True
+        )
+
+    # ➖ إزالة
+    @discord.ui.button(
+        label="إزالة -",
+        style=discord.ButtonStyle.danger,
+        row=0
+    )
+    async def remove_button(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+
+        await interaction.response.send_message(
+            "اختر رتبة للإزالة",
+            view=RemoveView(),
+            ephemeral=True
+        )
 
     # 🗑 حذف
     @discord.ui.button(
         label="حذف",
         style=discord.ButtonStyle.danger,
-        row=1
+        row=0
     )
     async def delete_game(
         self,
@@ -153,7 +208,7 @@ class SetupView(discord.ui.View):
     @discord.ui.button(
         label="تأكيد",
         style=discord.ButtonStyle.success,
-        row=2
+        row=1
     )
     async def confirm(
         self,
@@ -184,8 +239,6 @@ async def update_setup(gid):
 # لعبة المستذئب
 
 تم إنشاء لعبة جديدة، اختر الأدوار التي تريد اللعب بها.
-
-آخر دور تم إضافته: 👤 مدني: {g['مدني']}
 
 ☠️ قاتل: {g['قاتل']}
 💊 طبيب: {g['طبيب']}
