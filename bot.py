@@ -221,7 +221,7 @@ async def update_lobby(gid):
         text += "لا يوجد مشاركين"
     else:
         for p in g["players"]:
-            text += f"• {p.display_name}\n"
+            text += f"• {p.mention}\n"
 
     await g["message"].edit(
         content=text,
