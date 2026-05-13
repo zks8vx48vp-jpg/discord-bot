@@ -28,18 +28,23 @@ async def create_game(ctx):
         "طبيب": 1,
         "مدني": 3,
         "players": [],
-        "message": None
+        "message": None,
+        "confirmed": False
     }
 
     msg = await ctx.send(
-        "🐺 جاري إنشاء اللعبة...",
-        view=GameView()
+        "⚙️ إعداد اللعبة...",
+        view=SetupView()
     )
 
     games[gid]["message"] = msg
 
-    await update_game(gid)
+    await update_setup(gid)
 
+
+# =========================
+# ⚙️ مرحلة الإعداد
+# =========================
 
 # ➕ إضافة رتبة
 class AddRoleSelect(discord.ui.Select):
@@ -62,7 +67,7 @@ class AddRoleSelect(discord.ui.Select):
 
         games[interaction.guild.id][role] += 1
 
-        await update_game(interaction.guild.id)
+        await update_setup(interaction.guild.id)
 
         await interaction.response.defer()
 
@@ -89,18 +94,62 @@ class RemoveRoleSelect(discord.ui.Select):
         if games[interaction.guild.id][role] > 1:
             games[interaction.guild.id][role] -= 1
 
-        await update_game(interaction.guild.id)
+        await update_setup(interaction.guild.id)
 
         await interaction.response.defer()
 
 
-# 🎮 الأزرار
-class GameView(discord.ui.View):
+# ⚙️ صفحة الإعداد
+class SetupView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
         self.add_item(AddRoleSelect())
         self.add_item(RemoveRoleSelect())
+
+    # ✅ تأكيد
+    @discord.ui.button(label="✅ تأكيد", style=discord.ButtonStyle.green)
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+        games[interaction.guild.id]["confirmed"] = True
+
+        await update_lobby(interaction.guild.id)
+
+        await interaction.response.defer()
+
+
+# 🔁 تحديث صفحة الإعداد
+async def update_setup(gid):
+
+    g = games[gid]
+
+    total = g["قاتل"] + g["طبيب"] + g["مدني"]
+
+    text = f"""
+⚙️ **إعداد اللعبة**
+
+👥 مجموع الأدوار: {total}
+
+☠️ قاتل: {g['قاتل']}
+💊 طبيب: {g['طبيب']}
+👤 مدني: {g['مدني']}
+
+اضبط الأعداد ثم اضغط تأكيد
+"""
+
+    await g["message"].edit(
+        content=text,
+        view=SetupView()
+    )
+
+
+# =========================
+# 🎮 مرحلة اللوبي
+# =========================
+
+class LobbyView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
 
     # 🎮 انضمام
     @discord.ui.button(label="🎮 انضم إلى اللعبة", style=discord.ButtonStyle.green)
@@ -108,7 +157,7 @@ class GameView(discord.ui.View):
 
         g = games[interaction.guild.id]
 
-        total_roles = g["قاتل"] + g["طبيب"] + g["مدني"]
+        total = g["قاتل"] + g["طبيب"] + g["مدني"]
 
         if interaction.user in g["players"]:
             return await interaction.response.send_message(
@@ -116,7 +165,7 @@ class GameView(discord.ui.View):
                 ephemeral=True
             )
 
-        if len(g["players"]) >= total_roles:
+        if len(g["players"]) >= total:
             return await interaction.response.send_message(
                 "❌ اللعبة ممتلئة",
                 ephemeral=True
@@ -124,10 +173,10 @@ class GameView(discord.ui.View):
 
         g["players"].append(interaction.user)
 
-        await update_game(interaction.guild.id)
+        await update_lobby(interaction.guild.id)
 
         await interaction.response.send_message(
-            "✅ انضممت إلى اللعبة",
+            "✅ انضممت",
             ephemeral=True
         )
 
@@ -140,7 +189,7 @@ class GameView(discord.ui.View):
         if interaction.user in g["players"]:
             g["players"].remove(interaction.user)
 
-        await update_game(interaction.guild.id)
+        await update_lobby(interaction.guild.id)
 
         await interaction.response.send_message(
             "🚪 غادرت اللعبة",
@@ -148,15 +197,15 @@ class GameView(discord.ui.View):
         )
 
 
-# 🔁 تحديث الرسالة
-async def update_game(gid):
+# 🔁 تحديث اللوبي
+async def update_lobby(gid):
 
     g = games[gid]
 
-    total_roles = g["قاتل"] + g["طبيب"] + g["مدني"]
+    total = g["قاتل"] + g["طبيب"] + g["مدني"]
 
     text = f"""
-🐺 **المستذئبين {len(g['players'])}/{total_roles}**
+🐺 **المستذئبين {len(g['players'])}/{total}**
 
 📢 تبدأ اللعبة عندما يساوي عدد اللاعبين عدد الأدوار.
 
@@ -176,7 +225,7 @@ async def update_game(gid):
 
     await g["message"].edit(
         content=text,
-        view=GameView()
+        view=LobbyView()
     )
 
 
