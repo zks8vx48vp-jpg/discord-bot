@@ -27,17 +27,15 @@ async def create_game(ctx):
     gid = ctx.guild.id
 
     games[gid] = {
-        "roles": {
-            "قاتل": 1,
-            "طبيب": 1,
-            "مدني": 3
-        },
+        "قاتل": 1,
+        "طبيب": 1,
+        "مدني": 3,
         "players": [],
         "message": None
     }
 
     msg = await ctx.send(
-        "⚙️ جاري إنشاء اللعبة...",
+        "جاري إنشاء اللعبة...",
         view=SetupView()
     )
 
@@ -54,9 +52,18 @@ class AddRoleSelect(discord.ui.Select):
     def __init__(self):
 
         options = [
-            discord.SelectOption(label="قاتل", emoji="☠️"),
-            discord.SelectOption(label="طبيب", emoji="💊"),
-            discord.SelectOption(label="مدني", emoji="👤")
+            discord.SelectOption(
+                label="قاتل",
+                emoji="☠️"
+            ),
+            discord.SelectOption(
+                label="طبيب",
+                emoji="💊"
+            ),
+            discord.SelectOption(
+                label="مدني",
+                emoji="👤"
+            )
         ]
 
         super().__init__(
@@ -68,7 +75,7 @@ class AddRoleSelect(discord.ui.Select):
 
         role = self.values[0]
 
-        games[interaction.guild.id]["roles"][role] += 1
+        games[interaction.guild.id][role] += 1
 
         await update_setup(interaction.guild.id)
 
@@ -76,16 +83,25 @@ class AddRoleSelect(discord.ui.Select):
 
 
 # =========================
-# ➖ حذف رتبة
+# ➖ إزالة رتبة
 # =========================
 
 class RemoveRoleSelect(discord.ui.Select):
     def __init__(self):
 
         options = [
-            discord.SelectOption(label="قاتل", emoji="☠️"),
-            discord.SelectOption(label="طبيب", emoji="💊"),
-            discord.SelectOption(label="مدني", emoji="👤")
+            discord.SelectOption(
+                label="قاتل",
+                emoji="☠️"
+            ),
+            discord.SelectOption(
+                label="طبيب",
+                emoji="💊"
+            ),
+            discord.SelectOption(
+                label="مدني",
+                emoji="👤"
+            )
         ]
 
         super().__init__(
@@ -97,8 +113,8 @@ class RemoveRoleSelect(discord.ui.Select):
 
         role = self.values[0]
 
-        if games[interaction.guild.id]["roles"][role] > 0:
-            games[interaction.guild.id]["roles"][role] -= 1
+        if games[interaction.guild.id][role] > 0:
+            games[interaction.guild.id][role] -= 1
 
         await update_setup(interaction.guild.id)
 
@@ -116,9 +132,34 @@ class SetupView(discord.ui.View):
         self.add_item(AddRoleSelect())
         self.add_item(RemoveRoleSelect())
 
+    # 🗑 حذف
+    @discord.ui.button(
+        label="حذف",
+        style=discord.ButtonStyle.danger,
+        row=1
+    )
+    async def delete_game(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+
+        await interaction.message.delete()
+
+        if interaction.guild.id in games:
+            del games[interaction.guild.id]
+
     # ✅ تأكيد
-    @discord.ui.button(label="تأكيد", style=discord.ButtonStyle.green)
-    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(
+        label="تأكيد",
+        style=discord.ButtonStyle.success,
+        row=2
+    )
+    async def confirm(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
 
         await update_lobby(interaction.guild.id)
 
@@ -133,18 +174,24 @@ async def update_setup(gid):
 
     g = games[gid]
 
-    total = sum(g["roles"].values())
+    total = (
+        g["قاتل"] +
+        g["طبيب"] +
+        g["مدني"]
+    )
 
     text = f"""
 # لعبة المستذئب
 
 تم إنشاء لعبة جديدة، اختر الأدوار التي تريد اللعب بها.
 
-الأدوار: {total}/24
+آخر دور تم إضافته: 👤 مدني: {g['مدني']}
 
-☠️ قاتل: {g['roles']['قاتل']}
-💊 طبيب: {g['roles']['طبيب']}
-👤 مدني: {g['roles']['مدني']}
+☠️ قاتل: {g['قاتل']}
+💊 طبيب: {g['طبيب']}
+👤 مدني: {g['مدني']}
+
+الأدوار: {total}/24
 """
 
     await g["message"].edit(
@@ -162,22 +209,33 @@ class LobbyView(discord.ui.View):
         super().__init__(timeout=None)
 
     # 🎮 انضمام
-    @discord.ui.button(label="انضم إلى اللعبة", style=discord.ButtonStyle.green)
-    async def join(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(
+        label="انضم إلى اللعبة",
+        style=discord.ButtonStyle.success
+    )
+    async def join(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
 
         g = games[interaction.guild.id]
 
-        total = sum(g["roles"].values())
+        total = (
+            g["قاتل"] +
+            g["طبيب"] +
+            g["مدني"]
+        )
 
         if interaction.user in g["players"]:
             return await interaction.response.send_message(
-                "⚠️ أنت داخل مسبقًا",
+                "أنت داخل مسبقًا",
                 ephemeral=True
             )
 
         if len(g["players"]) >= total:
             return await interaction.response.send_message(
-                "❌ اللعبة ممتلئة",
+                "اللعبة ممتلئة",
                 ephemeral=True
             )
 
@@ -188,8 +246,15 @@ class LobbyView(discord.ui.View):
         await interaction.response.defer()
 
     # 🚪 مغادرة
-    @discord.ui.button(label="غادر اللعبة", style=discord.ButtonStyle.red)
-    async def leave(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(
+        label="غادر اللعبة",
+        style=discord.ButtonStyle.danger
+    )
+    async def leave(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
 
         g = games[interaction.guild.id]
 
@@ -209,7 +274,11 @@ async def update_lobby(gid):
 
     g = games[gid]
 
-    total = sum(g["roles"].values())
+    total = (
+        g["قاتل"] +
+        g["طبيب"] +
+        g["مدني"]
+    )
 
     text = f"""
 # لعبة المستذئبين {len(g['players'])}/{total}
@@ -230,9 +299,9 @@ async def update_lobby(gid):
 
 ## الأدوار
 
-☠️ قاتل: {g['roles']['قاتل']}
-💊 طبيب: {g['roles']['طبيب']}
-👤 مدني: {g['roles']['مدني']}
+☠️ قاتل: {g['قاتل']}
+💊 طبيب: {g['طبيب']}
+👤 مدني: {g['مدني']}
 """
 
     await g["message"].edit(
