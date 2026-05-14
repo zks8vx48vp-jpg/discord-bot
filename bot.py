@@ -45,102 +45,94 @@ async def create_game(ctx):
 
 
 # =========================
-# ➕ إضافة رتبة
+# ➕ مودال الإضافة
 # =========================
 
-class AddRoleSelect(discord.ui.Select):
-    def __init__(self):
+class AddRoleModal(discord.ui.Modal, title="اختيار الأدوار للعبة المستذئبين"):
 
-        options = [
-            discord.SelectOption(
-                label="قاتل",
-                emoji="☠️"
-            ),
-            discord.SelectOption(
-                label="طبيب",
-                emoji="💊"
-            ),
-            discord.SelectOption(
-                label="مدني",
-                emoji="👤"
+    role = discord.ui.TextInput(
+        label="اختر الدور",
+        placeholder="قاتل / طبيب / مدني",
+        required=True
+    )
+
+    amount = discord.ui.TextInput(
+        label="العدد",
+        placeholder="1",
+        required=True
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+
+        gid = interaction.guild.id
+
+        role = self.role.value.strip()
+        amount = int(self.amount.value)
+
+        if role in games[gid]:
+
+            games[gid][role] += amount
+
+            await update_setup(gid)
+
+            await interaction.response.send_message(
+                "✅ تمت الإضافة",
+                ephemeral=True
             )
-        ]
 
-        super().__init__(
-            placeholder="اختر رتبة للإضافة",
-            options=options
-        )
+        else:
 
-    async def callback(self, interaction: discord.Interaction):
-
-        role = self.values[0]
-
-        games[interaction.guild.id][role] += 1
-
-        await update_setup(interaction.guild.id)
-
-        await interaction.response.defer()
-
-
-# =========================
-# ➖ إزالة رتبة
-# =========================
-
-class RemoveRoleSelect(discord.ui.Select):
-    def __init__(self):
-
-        options = [
-            discord.SelectOption(
-                label="قاتل",
-                emoji="☠️"
-            ),
-            discord.SelectOption(
-                label="طبيب",
-                emoji="💊"
-            ),
-            discord.SelectOption(
-                label="مدني",
-                emoji="👤"
+            await interaction.response.send_message(
+                "❌ الرتبة غير موجودة",
+                ephemeral=True
             )
-        ]
-
-        super().__init__(
-            placeholder="اختر رتبة للإزالة",
-            options=options
-        )
-
-    async def callback(self, interaction: discord.Interaction):
-
-        role = self.values[0]
-
-        if games[interaction.guild.id][role] > 0:
-            games[interaction.guild.id][role] -= 1
-
-        await update_setup(interaction.guild.id)
-
-        await interaction.response.defer()
 
 
 # =========================
-# ➕ View الإضافة
+# ➖ مودال الإزالة
 # =========================
 
-class AddView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=30)
+class RemoveRoleModal(discord.ui.Modal, title="إزالة أدوار من اللعبة"):
 
-        self.add_item(AddRoleSelect())
+    role = discord.ui.TextInput(
+        label="اختر الدور",
+        placeholder="قاتل / طبيب / مدني",
+        required=True
+    )
 
+    amount = discord.ui.TextInput(
+        label="العدد",
+        placeholder="1",
+        required=True
+    )
 
-# =========================
-# ➖ View الإزالة
-# =========================
+    async def on_submit(self, interaction: discord.Interaction):
 
-class RemoveView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=30)
+        gid = interaction.guild.id
 
-        self.add_item(RemoveRoleSelect())
+        role = self.role.value.strip()
+        amount = int(self.amount.value)
+
+        if role in games[gid]:
+
+            games[gid][role] -= amount
+
+            if games[gid][role] < 0:
+                games[gid][role] = 0
+
+            await update_setup(gid)
+
+            await interaction.response.send_message(
+                "✅ تمت الإزالة",
+                ephemeral=True
+            )
+
+        else:
+
+            await interaction.response.send_message(
+                "❌ الرتبة غير موجودة",
+                ephemeral=True
+            )
 
 
 # =========================
@@ -163,10 +155,8 @@ class SetupView(discord.ui.View):
         button: discord.ui.Button
     ):
 
-        await interaction.response.send_message(
-            "اختر رتبة للإضافة",
-            view=AddView(),
-            ephemeral=True
+        await interaction.response.send_modal(
+            AddRoleModal()
         )
 
     # ➖ إزالة
@@ -181,10 +171,8 @@ class SetupView(discord.ui.View):
         button: discord.ui.Button
     ):
 
-        await interaction.response.send_message(
-            "اختر رتبة للإزالة",
-            view=RemoveView(),
-            ephemeral=True
+        await interaction.response.send_modal(
+            RemoveRoleModal()
         )
 
     # 🗑 حذف
