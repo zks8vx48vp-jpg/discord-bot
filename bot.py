@@ -45,109 +45,6 @@ async def create_game(ctx):
 
 
 # =========================
-# ➕ اختيار الإضافة
-# =========================
-
-class AddRoleSelect(discord.ui.Select):
-    def __init__(self):
-
-        options = [
-            discord.SelectOption(
-                label="قاتل",
-                emoji="☠️"
-            ),
-            discord.SelectOption(
-                label="طبيب",
-                emoji="💊"
-            ),
-            discord.SelectOption(
-                label="مدني",
-                emoji="👤"
-            )
-        ]
-
-        super().__init__(
-            placeholder="اختر الدور للإضافة",
-            min_values=1,
-            max_values=1,
-            options=options
-        )
-
-    async def callback(self, interaction: discord.Interaction):
-
-        role = self.values[0]
-
-        games[interaction.guild.id][role] += 1
-
-        await update_setup(interaction.guild.id)
-
-        await interaction.response.defer()
-
-
-# =========================
-# ➖ اختيار الإزالة
-# =========================
-
-class RemoveRoleSelect(discord.ui.Select):
-    def __init__(self):
-
-        options = [
-            discord.SelectOption(
-                label="قاتل",
-                emoji="☠️"
-            ),
-            discord.SelectOption(
-                label="طبيب",
-                emoji="💊"
-            ),
-            discord.SelectOption(
-                label="مدني",
-                emoji="👤"
-            )
-        ]
-
-        super().__init__(
-            placeholder="اختر الدور للإزالة",
-            min_values=1,
-            max_values=1,
-            options=options
-        )
-
-    async def callback(self, interaction: discord.Interaction):
-
-        role = self.values[0]
-
-        if games[interaction.guild.id][role] > 0:
-            games[interaction.guild.id][role] -= 1
-
-        await update_setup(interaction.guild.id)
-
-        await interaction.response.defer()
-
-
-# =========================
-# ➕ View الإضافة
-# =========================
-
-class AddView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=30)
-
-        self.add_item(AddRoleSelect())
-
-
-# =========================
-# ➖ View الإزالة
-# =========================
-
-class RemoveView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=30)
-
-        self.add_item(RemoveRoleSelect())
-
-
-# =========================
 # ⚙️ صفحة الإعداد
 # =========================
 
@@ -167,9 +64,44 @@ class SetupView(discord.ui.View):
         button: discord.ui.Button
     ):
 
+        class AddRoleView(discord.ui.View):
+            def __init__(self):
+                super().__init__(timeout=30)
+
+            @discord.ui.select(
+                placeholder="اختر الدور",
+                options=[
+                    discord.SelectOption(
+                        label="قاتل",
+                        emoji="☠️"
+                    ),
+                    discord.SelectOption(
+                        label="طبيب",
+                        emoji="💊"
+                    ),
+                    discord.SelectOption(
+                        label="مدني",
+                        emoji="👤"
+                    )
+                ]
+            )
+            async def select_role(
+                self,
+                interaction2: discord.Interaction,
+                select: discord.ui.Select
+            ):
+
+                role = select.values[0]
+
+                games[interaction.guild.id][role] += 1
+
+                await update_setup(interaction.guild.id)
+
+                await interaction2.response.defer()
+
         await interaction.response.send_message(
             "اختر الدور الذي تريد إضافته",
-            view=AddView(),
+            view=AddRoleView(),
             ephemeral=True
         )
 
@@ -185,9 +117,45 @@ class SetupView(discord.ui.View):
         button: discord.ui.Button
     ):
 
+        class RemoveRoleView(discord.ui.View):
+            def __init__(self):
+                super().__init__(timeout=30)
+
+            @discord.ui.select(
+                placeholder="اختر الدور",
+                options=[
+                    discord.SelectOption(
+                        label="قاتل",
+                        emoji="☠️"
+                    ),
+                    discord.SelectOption(
+                        label="طبيب",
+                        emoji="💊"
+                    ),
+                    discord.SelectOption(
+                        label="مدني",
+                        emoji="👤"
+                    )
+                ]
+            )
+            async def select_role(
+                self,
+                interaction2: discord.Interaction,
+                select: discord.ui.Select
+            ):
+
+                role = select.values[0]
+
+                if games[interaction.guild.id][role] > 0:
+                    games[interaction.guild.id][role] -= 1
+
+                await update_setup(interaction.guild.id)
+
+                await interaction2.response.defer()
+
         await interaction.response.send_message(
             "اختر الدور الذي تريد إزالته",
-            view=RemoveView(),
+            view=RemoveRoleView(),
             ephemeral=True
         )
 
