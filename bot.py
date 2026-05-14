@@ -34,10 +34,7 @@ async def create_game(ctx):
         "message": None
     }
 
-    msg = await ctx.send(
-        "جاري إنشاء اللعبة...",
-        view=SetupView()
-    )
+    msg = await ctx.send("جاري إنشاء اللعبة...", view=SetupView())
 
     games[gid]["message"] = msg
 
@@ -45,157 +42,77 @@ async def create_game(ctx):
 
 
 # =========================
-# ⚙️ صفحة الإعداد
+# ⚙️ إعداد اللعبة
 # =========================
 
 class SetupView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    # ➕ إضافة
-    @discord.ui.button(
-        label="إضافة +",
-        style=discord.ButtonStyle.blurple,
-        row=0
-    )
-    async def add_button(
-        self,
-        interaction: discord.Interaction,
-        button: discord.ui.Button
-    ):
-
-        class AddRoleView(discord.ui.View):
+        # ➕ إضافة
+        class AddSelect(discord.ui.Select):
             def __init__(self):
-                super().__init__(timeout=30)
 
-            @discord.ui.select(
-                placeholder="اختر الدور",
-                options=[
-                    discord.SelectOption(
-                        label="قاتل",
-                        emoji="☠️",
-                        description="إضافة قاتل"
-                    ),
-                    discord.SelectOption(
-                        label="طبيب",
-                        emoji="💊",
-                        description="إضافة طبيب"
-                    ),
-                    discord.SelectOption(
-                        label="مدني",
-                        emoji="👤",
-                        description="إضافة مدني"
-                    )
+                options = [
+                    discord.SelectOption(label="قاتل", emoji="☠️"),
+                    discord.SelectOption(label="طبيب", emoji="💊"),
+                    discord.SelectOption(label="مدني", emoji="👤"),
                 ]
-            )
-            async def select_role(
-                self,
-                interaction2: discord.Interaction,
-                select: discord.ui.Select
-            ):
 
-                role = select.values[0]
+                super().__init__(
+                    placeholder="إضافة +",
+                    options=options
+                )
 
+            async def callback(self, interaction: discord.Interaction):
+
+                role = self.values[0]
                 games[interaction.guild.id][role] += 1
 
                 await update_setup(interaction.guild.id)
+                await interaction.response.defer()
 
-                await interaction2.response.defer()
+        self.add_item(AddSelect())
 
-        await interaction.response.send_message(
-            "اختر الدور الذي تريد إضافته",
-            view=AddRoleView(),
-            ephemeral=True
-        )
-
-    # ➖ إزالة
-    @discord.ui.button(
-        label="إزالة -",
-        style=discord.ButtonStyle.danger,
-        row=0
-    )
-    async def remove_button(
-        self,
-        interaction: discord.Interaction,
-        button: discord.ui.Button
-    ):
-
-        class RemoveRoleView(discord.ui.View):
+        # ➖ إزالة
+        class RemoveSelect(discord.ui.Select):
             def __init__(self):
-                super().__init__(timeout=30)
 
-            @discord.ui.select(
-                placeholder="اختر الدور",
-                options=[
-                    discord.SelectOption(
-                        label="قاتل",
-                        emoji="☠️",
-                        description="إزالة قاتل"
-                    ),
-                    discord.SelectOption(
-                        label="طبيب",
-                        emoji="💊",
-                        description="إزالة طبيب"
-                    ),
-                    discord.SelectOption(
-                        label="مدني",
-                        emoji="👤",
-                        description="إزالة مدني"
-                    )
+                options = [
+                    discord.SelectOption(label="قاتل", emoji="☠️"),
+                    discord.SelectOption(label="طبيب", emoji="💊"),
+                    discord.SelectOption(label="مدني", emoji="👤"),
                 ]
-            )
-            async def select_role(
-                self,
-                interaction2: discord.Interaction,
-                select: discord.ui.Select
-            ):
 
-                role = select.values[0]
+                super().__init__(
+                    placeholder="إزالة -",
+                    options=options
+                )
+
+            async def callback(self, interaction: discord.Interaction):
+
+                role = self.values[0]
 
                 if games[interaction.guild.id][role] > 0:
                     games[interaction.guild.id][role] -= 1
 
                 await update_setup(interaction.guild.id)
+                await interaction.response.defer()
 
-                await interaction2.response.defer()
-
-        await interaction.response.send_message(
-            "اختر الدور الذي تريد إزالته",
-            view=RemoveRoleView(),
-            ephemeral=True
-        )
+        self.add_item(RemoveSelect())
 
     # 🗑 حذف
-    @discord.ui.button(
-        label="حذف",
-        style=discord.ButtonStyle.danger,
-        row=0
-    )
-    async def delete_game(
-        self,
-        interaction: discord.Interaction,
-        button: discord.ui.Button
-    ):
+    @discord.ui.button(label="حذف", style=discord.ButtonStyle.danger)
+    async def delete_game(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         await interaction.message.delete()
-
-        if interaction.guild.id in games:
-            del games[interaction.guild.id]
+        games.pop(interaction.guild.id, None)
 
     # ✅ تأكيد
-    @discord.ui.button(
-        label="تأكيد",
-        style=discord.ButtonStyle.success,
-        row=1
-    )
-    async def confirm(
-        self,
-        interaction: discord.Interaction,
-        button: discord.ui.Button
-    ):
+    @discord.ui.button(label="تأكيد", style=discord.ButtonStyle.success)
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         await update_lobby(interaction.guild.id)
-
         await interaction.response.defer()
 
 
@@ -207,16 +124,10 @@ async def update_setup(gid):
 
     g = games[gid]
 
-    total = (
-        g["قاتل"] +
-        g["طبيب"] +
-        g["مدني"]
-    )
+    total = g["قاتل"] + g["طبيب"] + g["مدني"]
 
     text = f"""
 # لعبة المستذئب
-
-تم إنشاء لعبة جديدة، اختر الأدوار التي تريد اللعب بها.
 
 ☠️ قاتل: {g['قاتل']}
 💊 طبيب: {g['طبيب']}
@@ -225,10 +136,7 @@ async def update_setup(gid):
 الأدوار: {total}/24
 """
 
-    await g["message"].edit(
-        content=text,
-        view=SetupView()
-    )
+    await g["message"].edit(content=text, view=SetupView())
 
 
 # =========================
@@ -239,53 +147,25 @@ class LobbyView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    # 🎮 انضمام
-    @discord.ui.button(
-        label="انضم إلى اللعبة",
-        style=discord.ButtonStyle.success
-    )
-    async def join(
-        self,
-        interaction: discord.Interaction,
-        button: discord.ui.Button
-    ):
+    @discord.ui.button(label="انضم إلى اللعبة", style=discord.ButtonStyle.success)
+    async def join(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         g = games[interaction.guild.id]
-
-        total = (
-            g["قاتل"] +
-            g["طبيب"] +
-            g["مدني"]
-        )
+        total = g["قاتل"] + g["طبيب"] + g["مدني"]
 
         if interaction.user in g["players"]:
-            return await interaction.response.send_message(
-                "أنت داخل مسبقًا",
-                ephemeral=True
-            )
+            return await interaction.response.send_message("أنت داخل مسبقًا", ephemeral=True)
 
         if len(g["players"]) >= total:
-            return await interaction.response.send_message(
-                "اللعبة ممتلئة",
-                ephemeral=True
-            )
+            return await interaction.response.send_message("اللعبة ممتلئة", ephemeral=True)
 
         g["players"].append(interaction.user)
 
         await update_lobby(interaction.guild.id)
+        await interaction.response.defer()
 
-        await interaction2.response.defer()
-
-    # 🚪 مغادرة
-    @discord.ui.button(
-        label="غادر اللعبة",
-        style=discord.ButtonStyle.danger
-    )
-    async def leave(
-        self,
-        interaction: discord.Interaction,
-        button: discord.ui.Button
-    ):
+    @discord.ui.button(label="غادر اللعبة", style=discord.ButtonStyle.danger)
+    async def leave(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         g = games[interaction.guild.id]
 
@@ -293,7 +173,6 @@ class LobbyView(discord.ui.View):
             g["players"].remove(interaction.user)
 
         await update_lobby(interaction.guild.id)
-
         await interaction.response.defer()
 
 
@@ -305,40 +184,28 @@ async def update_lobby(gid):
 
     g = games[gid]
 
-    total = (
-        g["قاتل"] +
-        g["طبيب"] +
-        g["مدني"]
-    )
+    total = g["قاتل"] + g["طبيب"] + g["مدني"]
 
     text = f"""
 # لعبة المستذئبين {len(g['players'])}/{total}
 
-تبدأ اللعبة عندما يساوي عدد اللاعبين عدد الأدوار.
+تبدأ اللعبة عندما يكتمل العدد.
 
 ## المشاركون
 """
 
-    if not g["players"]:
-        text += "لا يوجد مشاركين\n"
-
-    else:
-        for p in g["players"]:
-            text += f"• {p.mention}\n"
+    for p in g["players"]:
+        text += f"• {p.mention}\n"
 
     text += f"""
 
 ## الأدوار
-
 ☠️ قاتل: {g['قاتل']}
 💊 طبيب: {g['طبيب']}
 👤 مدني: {g['مدني']}
 """
 
-    await g["message"].edit(
-        content=text,
-        view=LobbyView()
-    )
+    await g["message"].edit(content=text, view=LobbyView())
 
 
 bot.run(TOKEN)
