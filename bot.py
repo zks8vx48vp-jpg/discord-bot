@@ -35,20 +35,17 @@ class AddSelect(discord.ui.Select):
 
             discord.SelectOption(
                 label="قاتل",
-                emoji="☠️",
-                description="إضافة قاتل"
+                emoji="☠️"
             ),
 
             discord.SelectOption(
                 label="طبيب",
-                emoji="💊",
-                description="إضافة طبيب"
+                emoji="💊"
             ),
 
             discord.SelectOption(
                 label="مدني",
-                emoji="👤",
-                description="إضافة مدني"
+                emoji="👤"
             )
         ]
 
@@ -81,20 +78,17 @@ class RemoveSelect(discord.ui.Select):
 
             discord.SelectOption(
                 label="قاتل",
-                emoji="☠️",
-                description="إزالة قاتل"
+                emoji="☠️"
             ),
 
             discord.SelectOption(
                 label="طبيب",
-                emoji="💊",
-                description="إزالة طبيب"
+                emoji="💊"
             ),
 
             discord.SelectOption(
                 label="مدني",
-                emoji="👤",
-                description="إزالة مدني"
+                emoji="👤"
             )
         ]
 
@@ -139,7 +133,35 @@ class SetupView(discord.ui.View):
         button: discord.ui.Button
     ):
 
-        await update_lobby(interaction.guild.id)
+        gid = interaction.guild.id
+
+        game = games[gid]
+
+        total = (
+            game["قاتل"] +
+            game["طبيب"] +
+            game["مدني"]
+        )
+
+        text = f"""
+# لعبة المستذئبين 0/{total}
+
+تبدأ اللعبة عندما يكتمل العدد.
+
+## المشاركون
+لا يوجد مشاركين
+
+## الأدوار
+
+☠️ قاتل: {game['قاتل']}
+💊 طبيب: {game['طبيب']}
+👤 مدني: {game['مدني']}
+"""
+
+        await interaction.message.edit(
+            content=text,
+            view=LobbyView()
+        )
 
         await interaction.response.defer()
 
