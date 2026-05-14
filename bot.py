@@ -45,94 +45,106 @@ async def create_game(ctx):
 
 
 # =========================
-# ➕ مودال الإضافة
+# ➕ اختيار الإضافة
 # =========================
 
-class AddRoleModal(discord.ui.Modal, title="اختيار الأدوار للعبة المستذئبين"):
+class AddRoleSelect(discord.ui.Select):
+    def __init__(self):
 
-    role = discord.ui.TextInput(
-        label="اختر الدور",
-        placeholder="قاتل / طبيب / مدني",
-        required=True
-    )
-
-    amount = discord.ui.TextInput(
-        label="العدد",
-        placeholder="1",
-        required=True
-    )
-
-    async def on_submit(self, interaction: discord.Interaction):
-
-        gid = interaction.guild.id
-
-        role = self.role.value.strip()
-        amount = int(self.amount.value)
-
-        if role in games[gid]:
-
-            games[gid][role] += amount
-
-            await update_setup(gid)
-
-            await interaction.response.send_message(
-                "✅ تمت الإضافة",
-                ephemeral=True
+        options = [
+            discord.SelectOption(
+                label="قاتل",
+                emoji="☠️"
+            ),
+            discord.SelectOption(
+                label="طبيب",
+                emoji="💊"
+            ),
+            discord.SelectOption(
+                label="مدني",
+                emoji="👤"
             )
+        ]
 
-        else:
+        super().__init__(
+            placeholder="اختر الدور للإضافة",
+            min_values=1,
+            max_values=1,
+            options=options
+        )
 
-            await interaction.response.send_message(
-                "❌ الرتبة غير موجودة",
-                ephemeral=True
-            )
+    async def callback(self, interaction: discord.Interaction):
+
+        role = self.values[0]
+
+        games[interaction.guild.id][role] += 1
+
+        await update_setup(interaction.guild.id)
+
+        await interaction.response.defer()
 
 
 # =========================
-# ➖ مودال الإزالة
+# ➖ اختيار الإزالة
 # =========================
 
-class RemoveRoleModal(discord.ui.Modal, title="إزالة أدوار من اللعبة"):
+class RemoveRoleSelect(discord.ui.Select):
+    def __init__(self):
 
-    role = discord.ui.TextInput(
-        label="اختر الدور",
-        placeholder="قاتل / طبيب / مدني",
-        required=True
-    )
-
-    amount = discord.ui.TextInput(
-        label="العدد",
-        placeholder="1",
-        required=True
-    )
-
-    async def on_submit(self, interaction: discord.Interaction):
-
-        gid = interaction.guild.id
-
-        role = self.role.value.strip()
-        amount = int(self.amount.value)
-
-        if role in games[gid]:
-
-            games[gid][role] -= amount
-
-            if games[gid][role] < 0:
-                games[gid][role] = 0
-
-            await update_setup(gid)
-
-            await interaction.response.send_message(
-                "✅ تمت الإزالة",
-                ephemeral=True
+        options = [
+            discord.SelectOption(
+                label="قاتل",
+                emoji="☠️"
+            ),
+            discord.SelectOption(
+                label="طبيب",
+                emoji="💊"
+            ),
+            discord.SelectOption(
+                label="مدني",
+                emoji="👤"
             )
+        ]
 
-        else:
+        super().__init__(
+            placeholder="اختر الدور للإزالة",
+            min_values=1,
+            max_values=1,
+            options=options
+        )
 
-            await interaction.response.send_message(
-                "❌ الرتبة غير موجودة",
-                ephemeral=True
-            )
+    async def callback(self, interaction: discord.Interaction):
+
+        role = self.values[0]
+
+        if games[interaction.guild.id][role] > 0:
+            games[interaction.guild.id][role] -= 1
+
+        await update_setup(interaction.guild.id)
+
+        await interaction.response.defer()
+
+
+# =========================
+# ➕ View الإضافة
+# =========================
+
+class AddView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=30)
+
+        self.add_item(AddRoleSelect())
+
+
+# =========================
+# ➖ View الإزالة
+# =========================
+
+class RemoveView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=30)
+
+        self.add_item(RemoveRoleSelect())
 
 
 # =========================
@@ -155,8 +167,10 @@ class SetupView(discord.ui.View):
         button: discord.ui.Button
     ):
 
-        await interaction.response.send_modal(
-            AddRoleModal()
+        await interaction.response.send_message(
+            "اختر الدور الذي تريد إضافته",
+            view=AddView(),
+            ephemeral=True
         )
 
     # ➖ إزالة
@@ -171,8 +185,10 @@ class SetupView(discord.ui.View):
         button: discord.ui.Button
     ):
 
-        await interaction.response.send_modal(
-            RemoveRoleModal()
+        await interaction.response.send_message(
+            "اختر الدور الذي تريد إزالته",
+            view=RemoveView(),
+            ephemeral=True
         )
 
     # 🗑 حذف
@@ -210,7 +226,7 @@ class SetupView(discord.ui.View):
 
 
 # =========================
-# 🔁 تحديث صفحة الإعداد
+# 🔁 تحديث الإعداد
 # =========================
 
 async def update_setup(gid):
@@ -242,7 +258,7 @@ async def update_setup(gid):
 
 
 # =========================
-# 🎮 صفحة اللوبي
+# 🎮 اللوبي
 # =========================
 
 class LobbyView(discord.ui.View):
