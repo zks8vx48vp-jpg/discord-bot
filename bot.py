@@ -73,15 +73,18 @@ class SetupView(discord.ui.View):
                 options=[
                     discord.SelectOption(
                         label="قاتل",
-                        emoji="☠️"
+                        emoji="☠️",
+                        description="إضافة قاتل"
                     ),
                     discord.SelectOption(
                         label="طبيب",
-                        emoji="💊"
+                        emoji="💊",
+                        description="إضافة طبيب"
                     ),
                     discord.SelectOption(
                         label="مدني",
-                        emoji="👤"
+                        emoji="👤",
+                        description="إضافة مدني"
                     )
                 ]
             )
@@ -126,15 +129,18 @@ class SetupView(discord.ui.View):
                 options=[
                     discord.SelectOption(
                         label="قاتل",
-                        emoji="☠️"
+                        emoji="☠️",
+                        description="إزالة قاتل"
                     ),
                     discord.SelectOption(
                         label="طبيب",
-                        emoji="💊"
+                        emoji="💊",
+                        description="إزالة طبيب"
                     ),
                     discord.SelectOption(
                         label="مدني",
-                        emoji="👤"
+                        emoji="👤",
+                        description="إزالة مدني"
                     )
                 ]
             )
@@ -268,7 +274,7 @@ class LobbyView(discord.ui.View):
 
         await update_lobby(interaction.guild.id)
 
-        await interaction.response.defer()
+        await interaction2.response.defer()
 
     # 🚪 مغادرة
     @discord.ui.button(
