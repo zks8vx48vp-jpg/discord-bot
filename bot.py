@@ -1,11 +1,14 @@
 import discord
 from discord.ext import commands
 import os
+import random
+import asyncio
 
 TOKEN = os.environ.get("DISCORD_TOKEN")
 
 intents = discord.Intents.default()
 intents.message_content = True
+intents.members = True
 
 bot = commands.Bot(
     command_prefix="!",
@@ -13,7 +16,6 @@ bot = commands.Bot(
 )
 
 games = {}
-
 
 # =========================
 # تشغيل البوت
@@ -158,7 +160,7 @@ class SetupView(discord.ui.View):
 👤 مدني: {game['مدني']}
 """
 
-        await interaction.message.edit(
+        await game["message"].edit(
             content=text,
             view=LobbyView()
         )
@@ -231,6 +233,14 @@ class LobbyView(discord.ui.View):
 
         await interaction.response.defer()
 
+        # =========================
+        # بدء اللعبة تلقائي
+        # =========================
+
+        if len(game["players"]) == total:
+
+            await start_real_game(gid)
+
     # 🚪 مغادرة
     @discord.ui.button(
         label="غادر اللعبة",
@@ -255,7 +265,7 @@ class LobbyView(discord.ui.View):
 
 
 # =========================
-# تحديث الإعداد
+# تحديث صفحة الإعداد
 # =========================
 
 async def update_setup(gid):
@@ -328,6 +338,67 @@ async def update_lobby(gid):
         content=text,
         view=LobbyView()
     )
+
+
+# =========================
+# بدء اللعبة الحقيقية
+# =========================
+
+async def start_real_game(gid):
+
+    game = games[gid]
+
+    players = game["players"]
+
+    random.shuffle(players)
+
+    killers = players[:game["قاتل"]]
+
+    doctors = players[
+        game["قاتل"]:
+        game["قاتل"] + game["طبيب"]
+    ]
+
+    civilians = players[
+        game["قاتل"] + game["طبيب"]:
+    ]
+
+    # =========================
+    # إرسال الأدوار
+    # =========================
+
+    for p in killers:
+        await p.send("☠️ أنت قاتل")
+
+    for p in doctors:
+        await p.send("💊 أنت طبيب")
+
+    for p in civilians:
+        await p.send("👤 أنت مدني")
+
+    channel = game["message"].channel
+
+    # =========================
+    # الليل
+    # =========================
+
+    await channel.send("🌙 بدأ الليل")
+
+    await asyncio.sleep(10)
+
+    # =========================
+    # النهار
+    # =========================
+
+    await channel.send("☀️ بدأ النهار")
+
+    await asyncio.sleep(10)
+
+    # =========================
+    # التصويت
+    # =========================
+
+    await channel.send("🗳️ بدأ التصويت")
 
 
 # =========================
