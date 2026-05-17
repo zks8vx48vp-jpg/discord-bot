@@ -6,9 +6,7 @@ import asyncio
 
 TOKEN = os.environ.get("DISCORD_TOKEN")
 
-intents = discord.Intents.default()
-intents.message_content = True
-intents.members = True
+intents = discord.Intents.all()
 
 bot = commands.Bot(
     command_prefix="!",
@@ -17,182 +15,87 @@ bot = commands.Bot(
 
 games = {}
 
+
 # =========================
 # تشغيل البوت
 # =========================
 
 @bot.event
 async def on_ready():
-    print(f"✅ البوت شغال: {bot.user}")
+    print(f"✅ {bot.user}")
 
 
 # =========================
-# قائمة الإضافة +
+# التصويت
 # =========================
 
-class AddSelect(discord.ui.Select):
-    def __init__(self):
+class VoteSelect(discord.ui.Select):
+    def __init__(self, gid):
 
-        options = [
-
-            discord.SelectOption(
-                label="قاتل",
-                emoji="☠️"
-            ),
-
-            discord.SelectOption(
-                label="طبيب",
-                emoji="💊"
-            ),
-
-            discord.SelectOption(
-                label="مدني",
-                emoji="👤"
-            )
-        ]
-
-        super().__init__(
-            placeholder="إضافة +",
-            options=options
-        )
-
-    async def callback(self, interaction: discord.Interaction):
-
-        gid = interaction.guild.id
-
-        role = self.values[0]
-
-        games[gid][role] += 1
-
-        await update_setup(gid)
-
-        await interaction.response.defer()
-
-
-# =========================
-# قائمة الإزالة -
-# =========================
-
-class RemoveSelect(discord.ui.Select):
-    def __init__(self):
-
-        options = [
-
-            discord.SelectOption(
-                label="قاتل",
-                emoji="☠️"
-            ),
-
-            discord.SelectOption(
-                label="طبيب",
-                emoji="💊"
-            ),
-
-            discord.SelectOption(
-                label="مدني",
-                emoji="👤"
-            )
-        ]
-
-        super().__init__(
-            placeholder="إزالة -",
-            options=options
-        )
-
-    async def callback(self, interaction: discord.Interaction):
-
-        gid = interaction.guild.id
-
-        role = self.values[0]
-
-        if games[gid][role] > 0:
-            games[gid][role] -= 1
-
-        await update_setup(gid)
-
-        await interaction.response.defer()
-
-
-# =========================
-# واجهة الإعداد
-# =========================
-
-class SetupView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
-
-        self.add_item(AddSelect())
-        self.add_item(RemoveSelect())
-
-    # ✅ تأكيد
-    @discord.ui.button(
-        label="تأكيد",
-        style=discord.ButtonStyle.success
-    )
-    async def confirm(
-        self,
-        interaction: discord.Interaction,
-        button: discord.ui.Button
-    ):
-
-        gid = interaction.guild.id
+        self.gid = gid
 
         game = games[gid]
 
-        total = (
-            game["قاتل"] +
-            game["طبيب"] +
-            game["مدني"]
+        options = []
+
+        for player in game["alive"]:
+
+            options.append(
+                discord.SelectOption(
+                    label=player.name,
+                    value=str(player.id)
+                )
+            )
+
+        super().__init__(
+            placeholder="اختر شخص للتصويت",
+            options=options
         )
 
-        text = f"""
-# لعبة المستذئبين 0/{total}
+    async def callback(self, interaction: discord.Interaction):
 
-تبدأ اللعبة عندما يكتمل العدد.
+        gid = self.gid
 
-## المشاركون
-لا يوجد مشاركين
+        voted_id = int(self.values[0])
 
-## الأدوار
+        game = games[gid]
 
-☠️ قاتل: {game['قاتل']}
-💊 طبيب: {game['طبيب']}
-👤 مدني: {game['مدني']}
-"""
+        voted_player = None
 
-        await game["message"].edit(
-            content=text,
-            view=LobbyView()
-        )
+        for p in game["alive"]:
+
+            if p.id == voted_id:
+                voted_player = p
+
+        if voted_player:
+
+            game["alive"].remove(voted_player)
+
+            await interaction.message.channel.send(
+                f"📢 تم طرد {voted_player.mention}"
+            )
 
         await interaction.response.defer()
 
-    # 🗑 حذف
-    @discord.ui.button(
-        label="حذف",
-        style=discord.ButtonStyle.danger
-    )
-    async def delete(
-        self,
-        interaction: discord.Interaction,
-        button: discord.ui.Button
-    ):
 
-        await interaction.message.delete()
+class VoteView(discord.ui.View):
+    def __init__(self, gid):
+        super().__init__(timeout=20)
 
-        if interaction.guild.id in games:
-            del games[interaction.guild.id]
+        self.add_item(VoteSelect(gid))
 
 
 # =========================
-# واجهة اللوبي
+# الانضمام
 # =========================
 
-class LobbyView(discord.ui.View):
-    def __init__(self):
+class JoinView(discord.ui.View):
+
+    def __init__(self, gid):
         super().__init__(timeout=None)
 
-    # 🎮 انضمام
+        self.gid = gid
+
     @discord.ui.button(
         label="انضم إلى اللعبة",
         style=discord.ButtonStyle.success
@@ -203,202 +106,174 @@ class LobbyView(discord.ui.View):
         button: discord.ui.Button
     ):
 
-        gid = interaction.guild.id
-
-        game = games[gid]
-
-        total = (
-            game["قاتل"] +
-            game["طبيب"] +
-            game["مدني"]
-        )
+        game = games[self.gid]
 
         if interaction.user in game["players"]:
 
             return await interaction.response.send_message(
-                "❌ أنت داخل اللعبة مسبقًا",
-                ephemeral=True
-            )
-
-        if len(game["players"]) >= total:
-
-            return await interaction.response.send_message(
-                "❌ اللعبة ممتلئة",
+                "❌ أنت داخل اللعبة",
                 ephemeral=True
             )
 
         game["players"].append(interaction.user)
 
-        await update_lobby(gid)
+        players_text = ""
 
-        await interaction.response.defer()
+        for p in game["players"]:
+            players_text += f"• {p.mention}\n"
 
-        # =========================
-        # بدء اللعبة تلقائي
-        # =========================
-
-        if len(game["players"]) == total:
-
-            await start_real_game(gid)
-
-    # 🚪 مغادرة
-    @discord.ui.button(
-        label="غادر اللعبة",
-        style=discord.ButtonStyle.danger
-    )
-    async def leave(
-        self,
-        interaction: discord.Interaction,
-        button: discord.ui.Button
-    ):
-
-        gid = interaction.guild.id
-
-        game = games[gid]
-
-        if interaction.user in game["players"]:
-            game["players"].remove(interaction.user)
-
-        await update_lobby(gid)
-
-        await interaction.response.defer()
-
-
-# =========================
-# تحديث صفحة الإعداد
-# =========================
-
-async def update_setup(gid):
-
-    game = games[gid]
-
-    total = (
-        game["قاتل"] +
-        game["طبيب"] +
-        game["مدني"]
-    )
-
-    text = f"""
-# لعبة المستذئب
-
-☠️ قاتل: {game['قاتل']}
-💊 طبيب: {game['طبيب']}
-👤 مدني: {game['مدني']}
-
-الأدوار: {total}/24
-"""
-
-    await game["message"].edit(
-        content=text,
-        view=SetupView()
-    )
-
-
-# =========================
-# تحديث اللوبي
-# =========================
-
-async def update_lobby(gid):
-
-    game = games[gid]
-
-    total = (
-        game["قاتل"] +
-        game["طبيب"] +
-        game["مدني"]
-    )
-
-    text = f"""
-# لعبة المستذئبين {len(game['players'])}/{total}
-
-تبدأ اللعبة عندما يكتمل العدد.
+        await interaction.message.edit(
+            content=f"""
+# لعبة المستذئبين {len(game['players'])}/5
 
 ## المشاركون
-"""
+{players_text}
+""",
+            view=self
+        )
 
-    if not game["players"]:
+        await interaction.response.defer()
 
-        text += "لا يوجد مشاركين\n"
+        # يبدأ تلقائي
+        if len(game["players"]) >= 5 and not game["started"]:
 
-    else:
+            game["started"] = True
 
-        for player in game["players"]:
-            text += f"• {player.mention}\n"
-
-    text += f"""
-
-## الأدوار
-
-☠️ قاتل: {game['قاتل']}
-💊 طبيب: {game['طبيب']}
-👤 مدني: {game['مدني']}
-"""
-
-    await game["message"].edit(
-        content=text,
-        view=LobbyView()
-    )
+            await start_game(
+                self.gid,
+                interaction.channel
+            )
 
 
 # =========================
-# بدء اللعبة الحقيقية
+# بدء اللعبة
 # =========================
 
-async def start_real_game(gid):
+async def start_game(gid, channel):
 
     game = games[gid]
 
-    players = game["players"]
+    players = game["players"][:]
 
     random.shuffle(players)
 
-    killers = players[:game["قاتل"]]
+    killer = players[0]
+    doctor = players[1]
 
-    doctors = players[
-        game["قاتل"]:
-        game["قاتل"] + game["طبيب"]
-    ]
+    game["roles"][killer.id] = "قاتل"
+    game["roles"][doctor.id] = "طبيب"
 
-    civilians = players[
-        game["قاتل"] + game["طبيب"]:
-    ]
+    for p in players[2:]:
+        game["roles"][p.id] = "مدني"
+
+    game["alive"] = players[:]
 
     # =========================
     # إرسال الأدوار
     # =========================
 
-    for p in killers:
-        await p.send("☠️ أنت قاتل")
+    for p in players:
 
-    for p in doctors:
-        await p.send("💊 أنت طبيب")
+        role = game["roles"][p.id]
 
-    for p in civilians:
-        await p.send("👤 أنت مدني")
+        await p.send(f"🎭 دورك: {role}")
 
-    channel = game["message"].channel
+    await channel.send("🎮 بدأت اللعبة")
 
-    # =========================
-    # الليل
-    # =========================
+    while True:
 
-    await channel.send("🌙 بدأ الليل")
+        # =========================
+        # فحص الفوز
+        # =========================
 
-    await asyncio.sleep(10)
+        killers = [
+            p for p in game["alive"]
+            if game["roles"][p.id] == "قاتل"
+        ]
 
-    # =========================
-    # النهار
-    # =========================
+        civilians = [
+            p for p in game["alive"]
+            if game["roles"][p.id] != "قاتل"
+        ]
 
-    await channel.send("☀️ بدأ النهار")
+        if not killers:
 
-    await asyncio.sleep(10)
+            await channel.send("🎉 فاز المدنيين")
+            break
 
-    # =========================
-    # التصويت
-    # =========================
+        if len(killers) >= len(civilians):
 
-    await channel.send("🗳️ بدأ التصويت")
+            await channel.send("☠️ فاز القاتل")
+            break
+
+        # =========================
+        # الليل
+        # =========================
+
+        await channel.send("🌙 بدأ الليل")
+
+        await asyncio.sleep(5)
+
+        killer_alive = killers[0]
+
+        targets = [
+            p for p in game["alive"]
+            if p != killer_alive
+        ]
+
+        killed = random.choice(targets)
+
+        # =========================
+        # الطبيب
+        # =========================
+
+        doctors = [
+            p for p in game["alive"]
+            if game["roles"][p.id] == "طبيب"
+        ]
+
+        saved = None
+
+        if doctors:
+
+            saved = random.choice(game["alive"])
+
+        # =========================
+        # القتل
+        # =========================
+
+        if killed != saved:
+
+            game["alive"].remove(killed)
+
+            await channel.send(
+                f"☠️ مات {killed.mention}"
+            )
+
+        else:
+
+            await channel.send(
+                "💊 الطبيب أنقذ شخصًا"
+            )
+
+        # =========================
+        # النهار
+        # =========================
+
+        await channel.send("☀️ بدأ النهار")
+
+        await asyncio.sleep(5)
+
+        # =========================
+        # التصويت
+        # =========================
+
+        await channel.send(
+            "🗳️ بدأ التصويت",
+            view=VoteView(gid)
+        )
+
+        await asyncio.sleep(20)
 
 
 # =========================
@@ -412,27 +287,20 @@ async def game(ctx):
 
     games[gid] = {
 
-        "قاتل": 1,
-        "طبيب": 1,
-        "مدني": 3,
-
         "players": [],
-
-        "message": None
+        "alive": [],
+        "roles": {},
+        "started": False
     }
 
-    msg = await ctx.send(
-        "جاري إنشاء اللعبة...",
-        view=SetupView()
+    await ctx.send(
+        """
+# لعبة المستذئبين 0/5
+
+اضغط للانضمام
+""",
+        view=JoinView(gid)
     )
 
-    games[gid]["message"] = msg
-
-    await update_setup(gid)
-
-
-# =========================
-# تشغيل البوت
-# =========================
 
 bot.run(TOKEN)
