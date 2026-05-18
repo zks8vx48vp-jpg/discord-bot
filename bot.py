@@ -691,13 +691,24 @@ async def game(ctx):
         "message": None
     }
 
+    total = total_roles(gid)
+
+    text = f"""
+# لعبة المستذئب
+
+الأدوار: {total}/24
+
+☠️ قاتل: 1
+💊 طبيب: 1
+👤 مدني: 3
+"""
+
     msg = await ctx.send(
-        "جاري إنشاء اللعبة...",
+        content=text,
         view=SetupView()
     )
 
     games[gid]["message"] = msg
-
     await update_setup(gid)
 
 
