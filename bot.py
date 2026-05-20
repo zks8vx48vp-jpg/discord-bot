@@ -1,477 +1,5 @@
 # =========================================
-# لعبة المستذئب الاحترافية
-# =========================================
-
-import discord
-from discord.ext import commands
-import os
-import random
-import asyncio
-
-TOKEN = os.environ.get("DISCORD_TOKEN")
-
-intents = discord.Intents.all()
-
-bot = commands.Bot(
-    command_prefix="!",
-    intents=intents
-)
-
-games = {}
-
-# =========================================
-# تشغيل البوت
-# =========================================
-
-@bot.event
-async def on_ready():
-    print(f"✅ {bot.user}")
-
-
-# =========================================
-# حساب مجموع الأدوار
-# =========================================
-
-def total_roles(gid):
-
-    data = games[gid]["roles_count"]
-
-    return (
-        data["قاتل"] +
-        data["طبيب"] +
-        data["مدني"]
-    )
-
-
-# =========================================
-# إضافة دور
-# =========================================
-
-class AddRoleSelect(discord.ui.Select):
-
-    def __init__(self):
-
-        options = [
-
-            discord.SelectOption(
-                label="قاتل",
-                emoji="☠️"
-            ),
-
-            discord.SelectOption(
-                label="طبيب",
-                emoji="💊"
-            ),
-
-            discord.SelectOption(
-                label="مدني",
-                emoji="👤"
-            )
-        ]
-
-        super().__init__(
-            placeholder="إضافة +",
-            options=options
-        )
-
-    async def callback(self, interaction: discord.Interaction):
-
-        gid = interaction.guild.id
-
-        role = self.values[0]
-
-        games[gid]["roles_count"][role] += 1
-
-        await update_setup(gid)
-
-        await interaction.response.defer()
-
-
-# =========================================
-# إزالة دور
-# =========================================
-
-class RemoveRoleSelect(discord.ui.Select):
-
-    def __init__(self):
-
-        options = [
-
-            discord.SelectOption(
-                label="قاتل",
-                emoji="☠️"
-            ),
-
-            discord.SelectOption(
-                label="طبيب",
-                emoji="💊"
-            ),
-
-            discord.SelectOption(
-                label="مدني",
-                emoji="👤"
-            )
-        ]
-
-        super().__init__(
-            placeholder="إزالة -",
-            options=options
-        )
-
-    async def callback(self, interaction: discord.Interaction):
-
-        gid = interaction.guild.id
-
-        role = self.values[0]
-
-        if games[gid]["roles_count"][role] > 0:
-            games[gid]["roles_count"][role] -= 1
-
-        await update_setup(gid)
-
-        await interaction.response.defer()
-
-
-# =========================================
-# واجهة الإعداد
-# =========================================
-
-class SetupView(discord.ui.View):
-
-    def __init__(self):
-        super().__init__(timeout=None)
-
-        self.add_item(AddRoleSelect())
-        self.add_item(RemoveRoleSelect())
-
-    # =====================================
-    # تأكيد
-    # =====================================
-
-    @discord.ui.button(
-        label="تأكيد",
-        style=discord.ButtonStyle.success
-    )
-    async def confirm(
-        self,
-        interaction: discord.Interaction,
-        button: discord.ui.Button
-    ):
-
-        gid = interaction.guild.id
-
-        await update_lobby(gid)
-
-        await interaction.response.defer()
-
-    # =====================================
-    # حذف
-    # =====================================
-
-    @discord.ui.button(
-        label="حذف",
-        style=discord.ButtonStyle.danger
-    )
-    async def delete(
-        self,
-        interaction: discord.Interaction,
-        button: discord.ui.Button
-    ):
-
-        await interaction.message.delete()
-
-        if interaction.guild.id in games:
-            del games[interaction.guild.id]
-
-
-# =========================================
-# واجهة اللوبي
-# =========================================
-
-class LobbyView(discord.ui.View):
-
-    def __init__(self):
-        super().__init__(timeout=None)
-
-    # =====================================
-    # انضمام
-    # =====================================
-
-    @discord.ui.button(
-        label="انضم إلى اللعبة",
-        style=discord.ButtonStyle.success
-    )
-    async def join(
-        self,
-        interaction: discord.Interaction,
-        button: discord.ui.Button
-    ):
-
-        gid = interaction.guild.id
-
-        game = games[gid]
-
-        total = total_roles(gid)
-
-        if interaction.user in game["players"]:
-
-            return await interaction.response.send_message(
-                "❌ أنت داخل اللعبة",
-                ephemeral=True
-            )
-
-        if len(game["players"]) >= total:
-
-            return await interaction.response.send_message(
-                "❌ اللعبة ممتلئة",
-                ephemeral=True
-            )
-
-        game["players"].append(interaction.user)
-
-        await update_lobby(gid)
-
-        await interaction.response.defer()
-
-        # يبدأ تلقائي
-        if len(game["players"]) == total:
-
-            await start_real_game(gid)
-
-    # =====================================
-    # مغادرة
-    # =====================================
-
-    @discord.ui.button(
-        label="غادر اللعبة",
-        style=discord.ButtonStyle.danger
-    )
-    async def leave(
-        self,
-        interaction: discord.Interaction,
-        button: discord.ui.Button
-    ):
-
-        gid = interaction.guild.id
-
-        game = games[gid]
-
-        if interaction.user in game["players"]:
-            game["players"].remove(interaction.user)
-
-        await update_lobby(gid)
-
-        await interaction.response.defer()
-
-
-# =========================================
-# تصويت
-# =========================================
-
-class VoteSelect(discord.ui.Select):
-
-    def __init__(self, gid):
-
-        self.gid = gid
-
-        game = games[gid]
-
-        options = []
-
-        for player in game["alive"]:
-
-            options.append(
-                discord.SelectOption(
-                    label=player.name,
-                    value=str(player.id)
-                )
-            )
-
-        super().__init__(
-            placeholder="اختر لاعب للتصويت",
-            options=options
-        )
-
-    async def callback(self, interaction: discord.Interaction):
-
-        gid = self.gid
-
-        game = games[gid]
-
-        voted_id = int(self.values[0])
-
-        voted_player = None
-
-        for p in game["alive"]:
-
-            if p.id == voted_id:
-                voted_player = p
-
-        if voted_player:
-
-            game["alive"].remove(voted_player)
-
-            await interaction.message.channel.send(
-                f"📢 تم طرد {voted_player.mention}"
-            )
-
-        await interaction.response.defer()
-
-
-class VoteView(discord.ui.View):
-
-    def __init__(self, gid):
-        super().__init__(timeout=20)
-
-        self.add_item(VoteSelect(gid))
-
-
-# =========================================
-# اختيار القاتل
-# =========================================
-
-class KillSelect(discord.ui.Select):
-
-    def __init__(self, gid, killer):
-
-        self.gid = gid
-
-        game = games[gid]
-
-        options = []
-
-        for player in game["alive"]:
-
-            if player != killer:
-
-                options.append(
-                    discord.SelectOption(
-                        label=player.name,
-                        value=str(player.id)
-                    )
-                )
-
-        super().__init__(
-            placeholder="اختر شخص تقتله",
-            options=options
-        )
-
-    async def callback(self, interaction: discord.Interaction):
-
-        gid = self.gid
-
-        game = games[gid]
-
-        target_id = int(self.values[0])
-
-        for p in game["alive"]:
-
-            if p.id == target_id:
-
-                game["night_kill"] = p
-
-        await interaction.response.send_message(
-            "☠️ تم اختيار الضحية",
-            ephemeral=True
-        )
-
-
-class KillView(discord.ui.View):
-
-    def __init__(self, gid, killer):
-        super().__init__(timeout=30)
-
-        self.add_item(
-            KillSelect(gid, killer)
-        )
-
-
-# =========================================
-# اختيار الطبيب
-# =========================================
-
-class SaveSelect(discord.ui.Select):
-
-    def __init__(self, gid):
-
-        self.gid = gid
-
-        game = games[gid]
-
-        options = []
-
-        for player in game["alive"]:
-
-            options.append(
-                discord.SelectOption(
-                    label=player.name,
-                    value=str(player.id)
-                )
-            )
-
-        super().__init__(
-            placeholder="اختر شخص تحميه",
-            options=options
-        )
-
-    async def callback(self, interaction: discord.Interaction):
-
-        gid = self.gid
-
-        game = games[gid]
-
-        target_id = int(self.values[0])
-
-        for p in game["alive"]:
-
-            if p.id == target_id:
-
-                game["night_save"] = p
-
-        await interaction.response.send_message(
-            "💊 تم الحماية",
-            ephemeral=True
-        )
-
-
-class SaveView(discord.ui.View):
-
-    def __init__(self, gid):
-        super().__init__(timeout=30)
-
-        self.add_item(
-            SaveSelect(gid)
-        )
-
-
-# =========================================
-# تحديث الإعداد
-# =========================================
-
-async def update_setup(gid):
-
-    game = games[gid]
-
-    total = total_roles(gid)
-
-    text = f"""
-# لعبة المستذئب
-
-الأدوار: {total}/24
-
-☠️ قاتل: {game['roles_count']['قاتل']}
-💊 طبيب: {game['roles_count']['طبيب']}
-👤 مدني: {game['roles_count']['مدني']}
-"""
-
-    await game["message"].edit(
-        content=text,
-        view=SetupView()
-    )
-
-
-# =========================================
-# تحديث اللوبي
+# تحديث اللوبي الاحترافي
 # =========================================
 
 async def update_lobby(gid):
@@ -491,229 +19,271 @@ async def update_lobby(gid):
         for p in game["players"]:
             players_text += f"• {p.mention}\n"
 
-    text = f"""
-# لعبة المستذئبين {len(game['players'])}/{total}
+    embed = discord.Embed(
+        title=f"🎮 لعبة المستذئبين {len(game['players'])}/{total}",
+        description=(
+            "تبدأ اللعبة عندما يكتمل العدد.\n"
+        ),
+        color=discord.Color.dark_red()
+    )
 
-تبدأ اللعبة عندما يكتمل العدد.
+    embed.add_field(
+        name="👥 المشاركون",
+        value=players_text,
+        inline=False
+    )
 
-## المشاركون
-{players_text}
+    embed.add_field(
+        name="☠️ قاتل",
+        value=str(game["roles_count"]["قاتل"]),
+        inline=True
+    )
 
-## الأدوار
+    embed.add_field(
+        name="💊 طبيب",
+        value=str(game["roles_count"]["طبيب"]),
+        inline=True
+    )
 
-☠️ قاتل: {game['roles_count']['قاتل']}
-💊 طبيب: {game['roles_count']['طبيب']}
-👤 مدني: {game['roles_count']['مدني']}
-"""
+    embed.add_field(
+        name="👤 مدني",
+        value=str(game["roles_count"]["مدني"]),
+        inline=True
+    )
 
     await game["message"].edit(
-        content=text,
+        embed=embed,
+        content=None,
         view=LobbyView()
     )
 
 
 # =========================================
-# بدء اللعبة
+# الليل الاحترافي
 # =========================================
 
-async def start_real_game(gid):
+night_embed = discord.Embed(
+    title="🌙 بدأ الليل",
+    description=(
+        "القاتل يختار ضحيته...\n"
+        "الطبيب يختار شخصًا لحمايته..."
+    ),
+    color=discord.Color.dark_blue()
+)
 
-    game = games[gid]
+await channel.send(embed=night_embed)
 
-    players = game["players"][:]
+game["night_kill"] = None
+game["night_save"] = None
 
-    random.shuffle(players)
+# =========================================
+# إرسال اختيارات القاتل
+# =========================================
 
-    roles = []
+for killer in killers:
 
-    for i in range(game["roles_count"]["قاتل"]):
-        roles.append("قاتل")
+    try:
 
-    for i in range(game["roles_count"]["طبيب"]):
-        roles.append("طبيب")
-
-    for i in range(game["roles_count"]["مدني"]):
-        roles.append("مدني")
-
-    random.shuffle(roles)
-
-    game["alive"] = players[:]
-
-    # توزيع الأدوار
-    for player, role in zip(players, roles):
-
-        game["roles"][player.id] = role
-
-        try:
-            await player.send(f"🎭 دورك: {role}")
-        except:
-            pass
-
-    channel = game["message"].channel
-
-    await channel.send("🎮 بدأت اللعبة")
-
-    # =====================================
-    # الحلقة الرئيسية
-    # =====================================
-
-    while True:
-
-        alive = game["alive"]
-
-        killers = [
-            p for p in alive
-            if game["roles"][p.id] == "قاتل"
-        ]
-
-        civilians = [
-            p for p in alive
-            if game["roles"][p.id] != "قاتل"
-        ]
-
-        # =================================
-        # الفوز
-        # =================================
-
-        if not killers:
-
-            await channel.send("🎉 فاز المدنيين")
-            return
-
-        if len(killers) >= len(civilians):
-
-            await channel.send("☠️ فاز القاتل")
-            return
-
-        # =================================
-        # الليل
-        # =================================
-
-        await channel.send("🌙 بدأ الليل")
-
-        game["night_kill"] = None
-        game["night_save"] = None
-
-        # القاتل
-        for killer in killers:
-
-            try:
-                await killer.send(
-                    "☠️ اختر شخص تقتله",
-                    view=KillView(gid, killer)
-                )
-            except:
-                pass
-
-        # الطبيب
-        doctors = [
-            p for p in alive
-            if game["roles"][p.id] == "طبيب"
-        ]
-
-        for doctor in doctors:
-
-            try:
-                await doctor.send(
-                    "💊 اختر شخص تحميه",
-                    view=SaveView(gid)
-                )
-            except:
-                pass
-
-        # انتظار الاختيارات
-        await asyncio.sleep(30)
-
-        killed = game["night_kill"]
-        saved = game["night_save"]
-
-        # النتيجة
-        if killed and killed != saved:
-
-            if killed in game["alive"]:
-
-                game["alive"].remove(killed)
-
-                await channel.send(
-                    f"☠️ مات {killed.mention}"
-                )
-
-        else:
-
-            await channel.send(
-                "💊 الطبيب أنقذ شخصًا"
-            )
-
-        # =================================
-        # النهار
-        # =================================
-
-        await channel.send("☀️ بدأ النهار")
-
-        await asyncio.sleep(10)
-
-        # =================================
-        # التصويت
-        # =================================
-
-        await channel.send(
-            "🗳️ بدأ التصويت",
-            view=VoteView(gid)
+        killer_embed = discord.Embed(
+            title="☠️ دور القاتل",
+            description="اختر شخصًا لقتله",
+            color=discord.Color.red()
         )
 
-        await asyncio.sleep(20)
+        await killer.send(
+            embed=killer_embed,
+            view=KillView(gid, killer)
+        )
 
+    except:
+        pass
 
 # =========================================
-# أمر اللعبة
+# إرسال اختيارات الطبيب
 # =========================================
 
-@bot.command(name="العبة")
-async def game(ctx):
+doctors = [
+    p for p in alive
+    if game["roles"][p.id] == "طبيب"
+]
 
-    gid = ctx.guild.id
+for doctor in doctors:
 
-    games[gid] = {
+    try:
 
-        "players": [],
-        "alive": [],
-        "roles": {},
+        doctor_embed = discord.Embed(
+            title="💊 دور الطبيب",
+            description="اختر شخصًا لحمايته",
+            color=discord.Color.green()
+        )
 
-        "roles_count": {
-            "قاتل": 1,
-            "طبيب": 1,
-            "مدني": 3
-        },
+        await doctor.send(
+            embed=doctor_embed,
+            view=SaveView(gid)
+        )
 
-        "night_kill": None,
-        "night_save": None,
+    except:
+        pass
 
-        "message": None
-    }
+# انتظار الليل
+await asyncio.sleep(30)
 
-    total = total_roles(gid)
+killed = game["night_kill"]
+saved = game["night_save"]
 
-    text = f"""
-# لعبة المستذئب
+# =========================================
+# نتيجة الليل
+# =========================================
 
-الأدوار: {total}/24
+if killed and killed != saved:
 
-☠️ قاتل: 1
-💊 طبيب: 1
-👤 مدني: 3
-"""
+    if killed in game["alive"]:
 
-    msg = await ctx.send(
-        content=text,
-        view=SetupView()
+        game["alive"].remove(killed)
+
+        dead_embed = discord.Embed(
+            title="☠️ مات لاعب",
+            description=f"{killed.mention}",
+            color=discord.Color.dark_red()
+        )
+
+        await channel.send(embed=dead_embed)
+
+else:
+
+    save_embed = discord.Embed(
+        title="💊 نجاة",
+        description="الطبيب أنقذ شخصًا الليلة",
+        color=discord.Color.green()
     )
 
-    games[gid]["message"] = msg
-    await update_setup(gid)
-
+    await channel.send(embed=save_embed)
 
 # =========================================
-# تشغيل البوت
+# النهار
 # =========================================
 
-bot.run(TOKEN)
+day_embed = discord.Embed(
+    title="☀️ بدأ النهار",
+    description=(
+        "ناقشوا الآن من القاتل\n"
+        "ثم صوتوا لطرده"
+    ),
+    color=discord.Color.gold()
+)
+
+await channel.send(embed=day_embed)
+
+await asyncio.sleep(10)
+
+# =========================================
+# التصويت الاحترافي
+# =========================================
+
+game["votes"] = {}
+
+vote_embed = discord.Embed(
+    title="🗳️ التصويت بدأ",
+    description=(
+        "اختر اللاعب الذي تريد طرده\n\n"
+        "⏳ مدة التصويت: 20 ثانية"
+    ),
+    color=discord.Color.red()
+)
+
+vote_message = await channel.send(
+    embed=vote_embed,
+    view=VoteView(gid)
+)
+
+# انتظار التصويت
+await asyncio.sleep(20)
+
+# حذف الأزرار
+await vote_message.edit(view=None)
+
+# =========================================
+# حساب الأصوات
+# =========================================
+
+vote_count = {}
+
+for voted_id in game["votes"].values():
+
+    if voted_id not in vote_count:
+        vote_count[voted_id] = 0
+
+    vote_count[voted_id] += 1
+
+# =========================================
+# لا يوجد تصويت
+# =========================================
+
+if not vote_count:
+
+    no_vote_embed = discord.Embed(
+        title="❌ انتهى التصويت",
+        description="لم يصوت أحد",
+        color=discord.Color.dark_red()
+    )
+
+    await channel.send(embed=no_vote_embed)
+
+# =========================================
+# تعادل أو طرد
+# =========================================
+
+else:
+
+    highest_vote = max(vote_count.values())
+
+    highest_players = []
+
+    for player_id, amount in vote_count.items():
+
+        if amount == highest_vote:
+            highest_players.append(player_id)
+
+    # =====================================
+    # تعادل
+    # =====================================
+
+    if len(highest_players) > 1:
+
+        tie_embed = discord.Embed(
+            title="⚖️ تعادل",
+            description="لم يتم طرد أحد",
+            color=discord.Color.orange()
+        )
+
+        await channel.send(embed=tie_embed)
+
+    # =====================================
+    # طرد
+    # =====================================
+
+    else:
+
+        voted_player = None
+
+        for p in game["alive"]:
+
+            if p.id == highest_players[0]:
+                voted_player = p
+
+        if voted_player:
+
+            game["alive"].remove(voted_player)
+
+            role = game["roles"][voted_player.id]
+
+            result_embed = discord.Embed(
+                title="📢 تم طرد لاعب",
+                description=(
+                    f"{voted_player.mention}\n\n"
+                    f"🎭 دوره كان: **{role}**"
+                ),
+                color=discord.Color.dark_red()
+            )
+
+            await channel.send(embed=result_embed)
