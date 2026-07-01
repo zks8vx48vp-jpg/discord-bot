@@ -133,7 +133,7 @@ async def rps_game(ctx, choice: str = None):
 # 🔑 تشغيل البوت عبر التوكن
 # ==========================================
 # ⚠️ استبدل النص بالأسفل بتوكن بوتك الجديد والمستخرج من موقع المطورين
-BOT_TOKEN = "bot.run(os.getenv('TOKEN'))
-"
+bot.run(os.getenv('TOKEN'))
+
 
 bot.run(BOT_TOKEN)
