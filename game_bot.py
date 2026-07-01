@@ -1,4 +1,6 @@
-import discord
+intents = discord.Intents.default()
+intents.message_content = True  # هذا السطر مهم جداً
+
 import os
 import random
 import asyncio
