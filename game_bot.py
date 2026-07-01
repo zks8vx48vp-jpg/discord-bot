@@ -4,61 +4,39 @@ import random
 import asyncio
 from discord.ext import commands
 
-# إعداد الملاحيات الأساسية للبوت
+# --- إعداد الصلاحيات والبادئة ---
 intents = discord.Intents.default()
-intents.message_content = True 
+intents.message_content = True  # تفعيل قراءة الرسائل
 
-# إعداد البوت
-bot = commands.Bot(command_prefix="!", intents=intents)
-
-@bot.event
-async def on_ready():
-    print(f'تم تشغيل البوت بنجاح: {bot.user.name}')
-
-
-import os
-import random
-import asyncio
-from discord.ext import commands
-
-
-# إعداد الصلاحيات الأساسية للبوت (Intents)
-intents = discord.Intents.default()
-intents.message_content = True  # تفعيل قراءة محتوى الرسائل
-
-# إنشاء كائن البوت مع بادئة الأوامر (!) وتغيير نص المساعدة الافتراضي
+# تعريف البوت مع إيقاف أمر المساعدة الافتراضي لتخصيصه
 bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 
 # ==========================================
-# 🟢 حدث تشغيل البوت بنجاح
+# 🟢 حدث التشغيل (تمت إضافة حالة الاستماع)
 # ==========================================
 @bot.event
 async def on_ready():
     print(f"====================================")
-    print(f"🤖 تم تشغيل البوت بنجاح يا مبرمج!")
-    print(f"👑 اسم البوت: {bot.user.name}")
+    print(f"🤖 تم تشغيل البوت بنجاح: {bot.user.name}")
     print(f"🆔 معرف البوت: {bot.user.id}")
     print(f"====================================")
-    
-    # تعيين حالة البوت (يستمع إلى !مساعدة)
     await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="!مساعدة"))
 
 # ==========================================
-# 📜 أمر المساعدة العام
+# 📜 أمر المساعدة (Embed احترافي)
 # ==========================================
 @bot.command(name="مساعدة")
 async def help_command(ctx):
     embed = discord.Embed(
         title="✨ قائمة أوامر بوت الألعاب والترفيه ✨",
-        description="أهلاً بك! أنا بوت الألعاب السريع. إليك الأوامر المتاحة حالياً:",
+        description="أهلاً بك! إليك الأوامر المتاحة:",
         color=discord.Color.blurple()
     )
-    embed.add_field(name="🎮 !تخمين", value="ابدأ لعبة تخمين الأرقام من 1 إلى 10.", inline=False)
-    embed.add_field(name="🪨 !مقص", value="العب حجر، ورقة، مقص ضد البوت. (مثال: `!مقص حجر`)", inline=False)
-    embed.add_field(name="🎯 !العاب", value="عرض الألعاب المتاحة حالياً في البوت.", inline=False)
-    embed.add_field(name="👋 !ترحيب", value="يرحب بك البوت بطريقة رهيبة.", inline=False)
+    embed.add_field(name="🎮 !تخمين", value="لعبة تخمين الأرقام (1-10).", inline=False)
+    embed.add_field(name="🪨 !مقص [حجر/ورقة/مقص]", value="لعبة حجر ورقة مقص ضد البوت.", inline=False)
+    embed.add_field(name="🎯 !العاب", value="عرض قائمة الألعاب المتاحة.", inline=False)
+    embed.add_field(name="👋 !ترحيب", value="استقبل رسالة ترحيبية.", inline=False)
     embed.set_footer(text=f"طلب بواسطة: {ctx.author.name}", icon_url=ctx.author.display_avatar.url)
-    
     await ctx.send(embed=embed)
 
 # ==========================================
@@ -78,81 +56,55 @@ async def welcome(ctx):
 # ==========================================
 @bot.command(name="العاب")
 async def games_list(ctx):
-    embed = discord.Embed(
-        title="🎮 الألعاب المتاحة حالياً 🎮",
-        description="اختر أحد الأوامر التالية لبدء اللعب والتحدي:",
-        color=discord.Color.green()
-    )
-    embed.add_field(name="1️⃣ لعبة تخمين الرقم", value="اكتب الأمر: `!تخمين`", inline=True)
-    embed.add_field(name="2️⃣ لعبة حجر ورقة مقص", value="اكتب الأمر: `!مقص [حجر/ورقة/مقص]`", inline=True)
-    embed.set_thumbnail(url="https://cdn-icons-png.flaticon.com/512/3408/3408506.png")
+    embed = discord.Embed(title="🎮 الألعاب المتاحة", color=discord.Color.green())
+    embed.add_field(name="تخمين الرقم", value="`!تخمين`", inline=True)
+    embed.add_field(name="حجر ورقة مقص", value="`!مقص`", inline=True)
     await ctx.send(embed=embed)
 
 # ==========================================
-# 🔢 1- لعبة تخمين الأرقام
+# 🔢 لعبة تخمين الأرقام
 # ==========================================
 @bot.command(name="تخمين")
 async def guess_game(ctx):
     secret_number = random.randint(1, 10)
-    await ctx.send(f"🎲 {ctx.author.mention}، لقد اخترت رقماً سرياً بين **1 و 10**. أمامك **3 محاولات** لتخمينه! اكتب تخمينك الآن:")
+    await ctx.send(f"🎲 {ctx.author.mention}، اخترت رقماً سرياً بين **1 و 10**. أمامك **3 محاولات**:")
 
     def check(m):
         return m.author == ctx.author and m.channel == ctx.channel and m.content.isdigit()
 
-    attempts = 3
-    for i in range(attempts):
+    for i in range(3):
         try:
-            # انتظار رد المستخدم لمدة 30 ثانية
             msg = await bot.wait_for('message', check=check, timeout=30.0)
             guess = int(msg.content)
-
             if guess == secret_number:
-                await ctx.send(f"🎉 كفوووو يا وحش! إجابتك صحيحة مبروك الفوز 🥳 الرقم السري هو **{secret_number}**.")
+                await ctx.send(f"🎉 كفوووو! الرقم السري كان **{secret_number}**.")
                 return
-            elif guess < secret_number:
-                await ctx.send(f"❌ الرقم السري **أكبر** من {guess}! متبقي لك {attempts - (i + 1)} محاولات.")
             else:
-                await ctx.send(f"❌ الرقم السري **أصغر** من {guess}! متبقي لك {attempts - (i + 1)} محاولات.")
-        
+                await ctx.send(f"❌ خطأ! متبقي لك {2-i} محاولات.")
         except asyncio.TimeoutError:
-            await ctx.send(f"⏱️ انتهى الوقت! تأخرت في الرد، الرقم السري كان **{secret_number}**.")
+            await ctx.send(f"⏱️ انتهى الوقت! الرقم كان **{secret_number}**.")
             return
-
-    await ctx.send(f"😢 للأسف خسرت جميع محاولاتك! الرقم السري الصحيح كان **{secret_number}**. حاول مرة أخرى!")
+    await ctx.send(f"😢 خسرت! الرقم الصحيح كان **{secret_number}**.")
 
 # ==========================================
-# 🪨 2- لعبة حجر ورقة مقص
+# 🪨 لعبة حجر ورقة مقص
 # ==========================================
 @bot.command(name="مقص")
 async def rps_game(ctx, choice: str = None):
     choices = ["حجر", "ورقة", "مقص"]
-    
-    if not choice or choice not in choices:
-        await ctx.send("⚠️ يرجى تحديد اختيارك بشكل صحيح! مثال: `!مقص حجر` أو `!مقص ورقة` أو `!مقص مقص`.")
+    if choice not in choices:
+        await ctx.send("⚠️ اختر: `!مقص حجر` أو `!مقص ورقة` أو `!مقص مقص`.")
         return
-
     bot_choice = random.choice(choices)
     
-    embed = discord.Embed(title="🪨 ورقة ✂️ مقص", color=discord.Color.orange())
-    embed.add_field(name="اختيارك:", value=choice, inline=True)
-    embed.add_field(name="اختيار البوت:", value=bot_choice, inline=True)
-
     if choice == bot_choice:
-        embed.description = "👔 **النتيجة: تعادل!** لعبنا نفس الشيء."
-    elif (choice == "حجر" and bot_choice == "مقص") or \
-         (choice == "ورقة" and bot_choice == "حجر") or \
-         (choice == "مقص" and bot_choice == "ورقة"):
-        embed.description = f"🎉 **النتيجة: أنت الفائز!** كفوو هزمتني 😎"
+        await ctx.send(f"👔 تعادل! اخترت {choice} وأنا {bot_choice}.")
+    elif (choice == "حجر" and bot_choice == "مقص") or (choice == "ورقة" and bot_choice == "حجر") or (choice == "مقص" and bot_choice == "ورقة"):
+        await ctx.send(f"🎉 فزت علي! (اختيارك: {choice} | اختياري: {bot_choice})")
     else:
-        embed.description = "🤖 **النتيجة: البوت فاز عليك!** حظاً أوفر المرة القادمة 😜"
-
-    await ctx.send(embed=embed)
+        await ctx.send(f"🤖 فزت عليك! (اختيارك: {choice} | اختياري: {bot_choice})")
 
 # ==========================================
-# 🔑 تشغيل البوت عبر التوكن
+# 🔑 تشغيل البوت (آمن)
 # ==========================================
-# ⚠️ استبدل النص بالأسفل بتوكن بوتك الجديد والمستخرج من موقع المطورين
 bot.run(os.getenv('TOKEN'))
-
-
-bot.run(BOT_TOKEN)
