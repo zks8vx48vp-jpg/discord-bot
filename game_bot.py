@@ -2,6 +2,8 @@ import discord
 import os
 import random
 import asyncio
+from discord.ext import commands
+
 
 # إعداد الصلاحيات الأساسية للبوت (Intents)
 intents = discord.Intents.default()
