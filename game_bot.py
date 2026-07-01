@@ -1,5 +1,20 @@
+import discord
+import os
+import random
+import asyncio
+from discord.ext import commands
+
+# إعداد الملاحيات الأساسية للبوت
 intents = discord.Intents.default()
-intents.message_content = True  # هذا السطر مهم جداً
+intents.message_content = True 
+
+# إعداد البوت
+bot = commands.Bot(command_prefix="!", intents=intents)
+
+@bot.event
+async def on_ready():
+    print(f'تم تشغيل البوت بنجاح: {bot.user.name}')
+
 
 import os
 import random
