@@ -3,64 +3,59 @@ from discord.ext import commands
 import random
 import os
 
-# إعدادات الصلاحيات
 intents = discord.Intents.default()
-intents.message_content = True 
+intents.message_content = True
+bot = commands.Bot(command_prefix="!", intents=intents)
 
-bot = commands.Bot(command_prefix='!', intents=intents)
-
-# 1. كلاس الألعاب (مغامرات وسباق)
-class AdventureView(discord.ui.View):
-    def __init__(self): super().__init__(timeout=60)
-    @discord.ui.button(label="مغامرات الغابة", style=discord.ButtonStyle.primary, emoji="🌲")
-    async def forest(self, i, b): await i.response.send_message("🌲 أنت الآن في غابة مليئة بالكنوز!", ephemeral=True)
-    @discord.ui.button(label="تحدي الذكاء", style=discord.ButtonStyle.success, emoji="🧠")
-    async def brain(self, i, b): await i.response.send_message("🧠 حل اللغز التالي للنجاة!", ephemeral=True)
-    @discord.ui.button(label="سباق السرعة", style=discord.ButtonStyle.danger, emoji="🏎️")
-    async def race(self, i, b): await i.response.send_message("🏎️ انطلق بأقصى سرعة للفوز بالسباق!", ephemeral=True)
-
-# 2. كلاس حجر ورقة مقص
-class RPSView(discord.ui.View):
-    def __init__(self): super().__init__(timeout=60)
-    async def play(self, i, user_c):
-        choices = ["حجر 🪨", "ورقة 📄", "مقص ✂️"]
-        b_c = random.choice(choices)
-        await i.response.send_message(f"أنت اخترت: {user_c} | البوت اختار: {b_c}", ephemeral=True)
-    @discord.ui.button(label="حجر", style=discord.ButtonStyle.secondary, emoji="🪨")
-    async def rock(self, i, b): await self.play(i, "حجر 🪨")
-    @discord.ui.button(label="ورقة", style=discord.ButtonStyle.secondary, emoji="📄")
-    async def paper(self, i, b): await self.play(i, "ورقة 📄")
-    @discord.ui.button(label="مقص", style=discord.ButtonStyle.secondary, emoji="✂️")
-    async def scissors(self, i, b): await self.play(i, "مقص ✂️")
-
-# 3. كلاس التخمين
+# قائمة التخمين بتنسيق احترافي
 class GuessView(discord.ui.View):
-    def __init__(self): super().__init__(timeout=60)
-    @discord.ui.button(label="1", style=discord.ButtonStyle.secondary)
-    async def g1(self, i, b): await i.response.send_message(f"النتيجة: {'صح' if random.randint(1,3)==1 else 'خطأ'}", ephemeral=True)
-    @discord.ui.button(label="2", style=discord.ButtonStyle.secondary)
-    async def g2(self, i, b): await i.response.send_message(f"النتيجة: {'صح' if random.randint(1,3)==2 else 'خطأ'}", ephemeral=True)
-    @discord.ui.button(label="3", style=discord.ButtonStyle.secondary)
-    async def g3(self, i, b): await i.response.send_message(f"النتيجة: {'صح' if random.randint(1,3)==3 else 'خطأ'}", ephemeral=True)
+    def __init__(self):
+        super().__init__(timeout=60)
+    
+    @discord.ui.button(label="1", style=discord.ButtonStyle.blurple)
+    async def g1(self, i: discord.Interaction, b: discord.ui.Button):
+        await i.response.send_message("🎯 لقد اخترت الرقم 1.. جاري التحقق.. الحظ ليس معك هذه المرة!", ephemeral=True)
 
-# 4. الأمر الرئيسي
-@bot.command(name='ألعاب')
+    @discord.ui.button(label="2", style=discord.ButtonStyle.blurple)
+    async def g2(self, i: discord.Interaction, b: discord.ui.Button):
+        await i.response.send_message("🎉 تهانينا! لقد أصبت الهدف! الرقم 2 هو الفائز.", ephemeral=True)
+
+# قائمة المغامرات بتنسيق احترافي
+class AdventureView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=60)
+        
+    @discord.ui.button(label="مغامرة الغابة المظلمة", style=discord.ButtonStyle.success)
+    async def forest(self, i: discord.Interaction, b: discord.ui.Button):
+        embed = discord.Embed(title="🌲 مغامرة الغابة", description="لقد دخلت الغابة، هل أنت مستعد لمواجهة الوحوش؟", color=discord.Color.green())
+        await i.response.send_message(embed=embed, ephemeral=True)
+
+# القائمة الرئيسية
+class MainMenuView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="⚔️ ابدأ المغامرة", style=discord.ButtonStyle.success)
+    async def adv(self, i: discord.Interaction, b: discord.ui.Button):
+        await i.response.send_message("اختيار رائع! استعد للرحلة:", view=AdventureView(), ephemeral=True)
+
+    @discord.ui.button(label="🎲 حجر ورقة مقص", style=discord.ButtonStyle.secondary)
+    async def rps(self, i: discord.Interaction, b: discord.ui.Button):
+        res = random.choice(["حجر 🪨", "ورقة 📄", "مقص ✂️"])
+        await i.response.send_message(f"أنا اخترت: **{res}**\nهل فزت عليّ؟", ephemeral=True)
+
+@bot.command()
 async def games(ctx):
-    embed = discord.Embed(title="🎮 مركز الألعاب الاحترافي", description="اختر فئة من الأزرار:", color=discord.Color.gold())
-    view = discord.ui.View()
-    
-    b1 = discord.ui.Button(label="مغامرات", style=discord.ButtonStyle.primary)
-    b1.callback = lambda i: i.response.send_message("اختر لعبة:", view=AdventureView(), ephemeral=True)
-    b2 = discord.ui.Button(label="حجر ورقة مقص", style=discord.ButtonStyle.success)
-    b2.callback = lambda i: i.response.send_message("اختر حركتك:", view=RPSView(), ephemeral=True)
-    b3 = discord.ui.Button(label="تخمين الرقم", style=discord.ButtonStyle.danger)
-    b3.callback = lambda i: i.response.send_message("خمن الرقم (1-3):", view=GuessView(), ephemeral=True)
-    
-    view.add_item(b1); view.add_item(b2); view.add_item(b3)
-    await ctx.send(embed=embed, view=view)
+    embed = discord.Embed(
+        title="✨ أهلاً بك في عالم التحدي!",
+        description="لقد انضممت إلى المركز الاحترافي للألعاب. اختر طريقك الآن:",
+        color=discord.Color.gold()
+    )
+    embed.set_footer(text="استمتع بوقتك!")
+    await ctx.send(embed=embed, view=MainMenuView())
 
 @bot.event
-async def on_ready(): print(f'✅ البوت {bot.user} جاهز للعب!')
+async def on_ready():
+    print(f'✅ البوت يعمل بوقار: {bot.user}')
 
-# ضع التوكن هنا مباشرة بين القوسين وعلامات التنصيص
-⁠bot.run(os.environ.get('TOKEN')
+bot.run(os.environ.get('TOKEN'))
