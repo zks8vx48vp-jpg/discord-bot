@@ -63,4 +63,4 @@ async def games(ctx):
 async def on_ready(): print(f'✅ البوت {bot.user} جاهز للعب!')
 
 # ضع التوكن هنا مباشرة بين القوسين وعلامات التنصيص
-bot.run('YOUR_TOKEN_HERE')
+⁠bot.run(os.environ.get('TOKEN')
