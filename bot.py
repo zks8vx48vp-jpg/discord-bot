@@ -1,296 +1,61 @@
-# =========================================
-# تحديث اللوبي الاحترافي
-# =========================================
-
-async def update_lobby(gid):
-
-    game = games[gid]
-
-    total = total_roles(gid)
-
-    players_text = ""
-
-    if not game["players"]:
-
-        players_text = "لا يوجد مشاركين"
-
-    else:
-
-        for p in game["players"]:
-            players_text += f"• {p.mention}\n"
-
-    embed = discord.Embed(
-        title=f"🎮 لعبة المستذئبين {len(game['players'])}/{total}",
-        description=(
-            "تبدأ اللعبة عندما يكتمل العدد.\n"
-        ),
-        color=discord.Color.dark_red()
-    )
-
-    embed.add_field(
-        name="👥 المشاركون",
-        value=players_text,
-        inline=False
-    )
-
-    embed.add_field(
-        name="☠️ قاتل",
-        value=str(game["roles_count"]["قاتل"]),
-        inline=True
-    )
-
-    embed.add_field(
-        name="💊 طبيب",
-        value=str(game["roles_count"]["طبيب"]),
-        inline=True
-    )
-
-    embed.add_field(
-        name="👤 مدني",
-        value=str(game["roles_count"]["مدني"]),
-        inline=True
-    )
-
-    await game["message"].edit(
-        embed=embed,
-        content=None,
-        view=LobbyView()
-    )
-
-
-# =========================================
-# دالة تشغيل نظام الليل والنهار الاحترافي
-# =========================================
-
-async def start_night_cycle(gid, channel, killers, alive):
-    game = games[gid]
-
-    # =========================================
-    # الليل الاحترافي
-    # =========================================
-
-    night_embed = discord.Embed(
-        title="🌙 بدأ الليل",
-        description=(
-            "القاتل يختار ضحيته...\n"
-            "الطبيب يختار شخصًا لحمايته..."
-        ),
-        color=discord.Color.dark_blue()
-    )
-
-    await channel.send(embed=night_embed)
-
-    game["night_kill"] = None
-    game["night_save"] = None
-
-    # =========================================
-    # إرسال اختيارات القاتل
-    # =========================================
-
-    for killer in killers:
-
-        try:
-
-            killer_embed = discord.Embed(
-                title="☠️ دور القاتل",
-                description="اختر شخصًا لقتله",
-                color=discord.Color.red()
-            )
-
-            await killer.send(
-                embed=killer_embed,
-                view=KillView(gid, killer)
-            )
-
-        except:
-            pass
-
-    # =========================================
-    # إرسال اختيارات الطبيب
-    # =========================================
-
-    doctors = [
-        p for p in alive
-        if game["roles"][p.id] == "طبيب"
-    ]
-
-    for doctor in doctors:
-
-        try:
-
-            doctor_embed = discord.Embed(
-                title="💊 دور الطبيب",
-                description="اختر شخصًا لحمايته",
-                color=discord.Color.green()
-            )
-
-            await doctor.send(
-                embed=doctor_embed,
-                view=SaveView(gid)
-            )
-
-        except:
-            pass
-
-    # انتظار الليل
-    await asyncio.sleep(30)
-
-    killed = game["night_kill"]
-    saved = game["night_save"]
-
-    # =========================================
-    # نتيجة الليل
-    # =========================================
-
-    if killed and killed != saved:
-
-        if killed in game["alive"]:
-
-            game["alive"].remove(killed)
-
-            dead_embed = discord.Embed(
-                title="☠️ مات لاعب",
-                description=f"{killed.mention}",
-                color=discord.Color.dark_red()
-            )
-
-            await channel.send(embed=dead_embed)
-
-    else:
-
-        save_embed = discord.Embed(
-            title="💊 نجاة",
-            description="الطبيب أنقذ شخصًا الليلة",
-            color=discord.Color.green()
-        )
-
-        await channel.send(embed=save_embed)
-
-    # =========================================
-    # النهار
-    # =========================================
-
-    day_embed = discord.Embed(
-        title="☀️ بدأ النهار",
-        description=(
-            "ناقشوا الآن من القاتل\n"
-            "ثم صوتوا لطرده"
-        ),
-        color=discord.Color.gold()
-    )
-
-    await channel.send(embed=day_embed)
-
-    await asyncio.sleep(10)
-
-    # =========================================
-    # التصويت الاحترافي
-    # =========================================
-
-    game["votes"] = {}
-
-    vote_embed = discord.Embed(
-        title="🗳️ التصويت بدأ",
-        description=(
-            "اختر اللاعب الذي تريد طرده\n\n"
-            "⏳ مدة التصويت: 20 ثانية"
-        ),
-        color=discord.Color.red()
-    )
-
-    vote_message = await channel.send(
-        embed=vote_embed,
-        view=VoteView(gid)
-    )
-
-    # انتظار التصويت
-    await asyncio.sleep(20)
-
-    # حذف الأزرار
-    await vote_message.edit(view=None)
-
-    # =========================================
-    # حساب الأصوات
-    # =========================================
-
-    vote_count = {}
-
-    for voted_id in game["votes"].values():
-
-        if voted_id not in vote_count:
-            vote_count[voted_id] = 0
-
-        vote_count[voted_id] += 1
-
-    # =========================================
-    # لا يوجد تصويت
-    # =========================================
-
-    if not vote_count:
-
-        no_vote_embed = discord.Embed(
-            title="❌ انتهى التصويت",
-            description="لم يصوت أحد",
-            color=discord.Color.dark_red()
-        )
-
-        await channel.send(embed=no_vote_embed)
-
-    # =========================================
-    # تعادل أو طرد
-    # =========================================
-
-    else:
-
-        highest_vote = max(vote_count.values())
-
-        highest_players = []
-
-        for player_id, amount in vote_count.items():
-
-            if amount == highest_vote:
-                highest_players.append(player_id)
-
-        # =====================================
-        # تعادل
-        # =====================================
-
-        if len(highest_players) > 1:
-
-            tie_embed = discord.Embed(
-                title="⚖️ تعادل",
-                description="لم يتم طرد أحد",
-                color=discord.Color.orange()
-            )
-
-            await channel.send(embed=tie_embed)
-
-        # =====================================
-        # طرد
-        # =====================================
-
+import discord
+from discord.ext import commands
+import os
+
+# إعدادات الصلاحيات
+intents = discord.Intents.default()
+intents.message_content = True
+bot = commands.Bot(command_prefix="!", intents=intents)
+
+class WerewolfView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.players = []
+        self.killers = 1
+        self.doctors = 1
+        self.civilians = 3
+
+    def get_embed(self):
+        embed = discord.Embed(title="لعبة المستذئبين", color=discord.Color.dark_purple())
+        players_list = "\n".join([f"• {p.mention}" for p in self.players]) if self.players else "لا يوجد مشاركون"
+        embed.add_field(name="المشاركون", value=players_list, inline=False)
+        embed.add_field(name="الأدوار", value=f"💀 قاتل: {self.killers}\n💊 طبيب: {self.doctors}\n👤 مدني: {self.civilians}", inline=False)
+        return embed
+
+    @discord.ui.button(label="انضم للعبة", style=discord.ButtonStyle.green)
+    async def join(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user not in self.players:
+            self.players.append(interaction.user)
+            await interaction.response.edit_message(embed=self.get_embed())
         else:
+            await interaction.response.send_message("أنت مشترك بالفعل!", ephemeral=True)
 
-            voted_player = None
+    @discord.ui.button(label="غادر اللعبة", style=discord.ButtonStyle.red)
+    async def leave(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user in self.players:
+            self.players.remove(interaction.user)
+            await interaction.response.edit_message(embed=self.get_embed())
 
-            for p in game["alive"]:
+    @discord.ui.button(label="إضافة دور +", style=discord.ButtonStyle.secondary)
+    async def add_role(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.civilians += 1
+        await interaction.response.edit_message(embed=self.get_embed())
 
-                if p.id == highest_players[0]:
-                    voted_player = p
+    @discord.ui.button(label="إزالة دور -", style=discord.ButtonStyle.secondary)
+    async def remove_role(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.civilians > 0:
+            self.civilians -= 1
+        await interaction.response.edit_message(embed=self.get_embed())
 
-            if voted_player:
+    @discord.ui.button(label="تأكيد اللعبة", style=discord.ButtonStyle.primary)
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message(f"✅ تم تأكيد الإعدادات! اللعبة ستبدأ بـ {len(self.players)} لاعبين.", ephemeral=False)
+        self.stop() 
 
-                game["alive"].remove(voted_player)
+@bot.command()
+async def لعبة(ctx):
+    view = WerewolfView()
+    await ctx.send(embed=view.get_embed(), view=view)
 
-                role = game["roles"][voted_player.id]
-
-                result_embed = discord.Embed(
-                    title="📢 تم طرد لاعب",
-                    description=(
-                        f"{voted_player.mention}\n\n"
-                        f"🎭 دوره كان: **{role}**"
-                    ),
-                    color=discord.Color.dark_red()
-                )
-
-                await channel.send(embed=result_embed)
+# جلب التوكن من إعدادات Railway
+bot.run(os.environ['TOKEN'])
