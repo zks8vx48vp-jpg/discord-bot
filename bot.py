@@ -3,85 +3,86 @@ from discord.ext import commands
 import random
 import os
 
+# إعدادات الصلاحيات (مهم جداً لتفعيل الأزرار والرسائل)
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-class GameSession:
+class SpyGameSession:
     def __init__(self):
         self.players = []
-        self.spy = None
-        self.topic = None
-        self.turn_index = 0
+        self.topic = "لم يتم الاختيار"
         self.active = False
+        self.spy = None
         self.categories = ["حيوانات", "ملابس", "أكلات", "سيارات", "فواكه", "شخصيات كرتون", "مشروبات", "حلويات", "مسلسلات", "أنمي", "كيبوب", "قيمرز"]
 
-session = GameSession()
+    def get_embed(self):
+        # التنسيق الذي طلبته للأسماء
+        player_list = "\n".join([f"BBB@ • {p.name}" for p in self.players]) if self.players else "لا يوجد مشاركين"
+        embed = discord.Embed(title="🎮 لعبة برّا السالفة", color=discord.Color.dark_theme())
+        embed.add_field(name="المشاركون", value=player_list, inline=False)
+        embed.add_field(name="الإعدادات", value=f"التصنيف: **{self.topic}**\nالحالة: {'بدأت' if self.active else 'بانتظار التأكيد'}", inline=False)
+        embed.set_footer(text="BBB @ System | 5/15/26")
+        return embed
 
-# واجهة التصويت بالأزرار
-class VoteView(discord.ui.View):
-    def __init__(self, players):
-        super().__init__(timeout=60)
-        for p in players:
-            self.add_item(self.create_button(p))
+session = SpyGameSession()
 
-    def create_button(self, player):
-        btn = discord.ui.Button(label=player.name, style=discord.ButtonStyle.secondary)
-        async def callback(i: discord.Interaction):
-            await i.response.send_message(f"🗳️ صوتَّ لـ {player.name}", ephemeral=True)
-        btn.callback = callback
-        return btn
+# نظام القائمة المنسدلة للتصنيفات
+class CategorySelect(discord.ui.Select):
+    def __init__(self):
+        options = [discord.SelectOption(label=c, value=c) for c in session.categories]
+        super().__init__(placeholder="اختر تصنيف السالفة...", options=options)
+    
+    async def callback(self, i: discord.Interaction):
+        session.topic = self.values[0]
+        await i.response.edit_message(embed=session.get_embed())
 
-# الواجهة الرئيسية للأزرار
 class MainGameView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
+        self.add_item(CategorySelect())
 
-    @discord.ui.button(label="👤 انضم للعبة", style=discord.ButtonStyle.green)
+    @discord.ui.button(label="انضم للعبة", style=discord.ButtonStyle.green)
     async def join(self, i: discord.Interaction, b: discord.ui.Button):
         if i.user not in session.players:
             session.players.append(i.user)
-            await i.response.send_message(f"✅ انضم {i.user.name}", ephemeral=True)
-        
-    @discord.ui.button(label="🚀 ابدأ اللعبة", style=discord.ButtonStyle.primary)
+            await i.response.edit_message(embed=session.get_embed())
+        else:
+            await i.response.send_message("❌ أنت مشارك بالفعل!", ephemeral=True)
+
+    @discord.ui.button(label="تأكيد وبدء", style=discord.ButtonStyle.primary)
     async def start(self, i: discord.Interaction, b: discord.ui.Button):
         if len(session.players) < 3:
-            return await i.response.send_message("❌ تحتاج 3 لاعبين على الأقل!", ephemeral=True)
+            return await i.response.send_message("❌ العدد المطلوب 3 لاعبين على الأقل!", ephemeral=True)
         
         session.active = True
         session.spy = random.choice(session.players)
-        session.topic = random.choice(session.categories)
         
+        # إنشاء روم اللعبة
+        channel = await i.guild.create_text_channel("برّا-السالفة")
+        
+        # إرسال الأدوار بالخاص
         for p in session.players:
             if p == session.spy:
-                await p.send("🕵️‍♂️ **أنت برّا السالفة!** حاول تمويههم.")
+                await p.send("🕵️‍♂️ **أنت برّا السالفة!** حاول التمويه واكتشاف الموضوع.")
             else:
                 await p.send(f"✅ **أنت داخل السالفة!** الموضوع هو: **{session.topic}**")
         
-        await i.response.send_message("🔥 **بدأت اللعبة!** تم إرسال الأدوار بالخاص للجميع.")
+        await i.response.send_message(f"🔥 **بدأت اللعبة!** تم إنشاء الروم: {channel.mention}")
 
-    @discord.ui.button(label="➡️ دورك انتهى", style=discord.ButtonStyle.danger)
-    async def next_turn(self, i: discord.Interaction, b: discord.ui.Button):
-        session.turn_index = (session.turn_index + 1) % len(session.players)
-        next_p = session.players[session.turn_index]
-        await i.response.send_message(f"⏳ الدور الآن لـ {next_p.mention}", ephemeral=False)
-
-    @discord.ui.button(label="🗳️ ابدأ التصويت", style=discord.ButtonStyle.secondary)
-    async def vote(self, i: discord.Interaction, b: discord.ui.Button):
-        await i.response.send_message("🚨 **التصويت:** من هو برّا السالفة؟ اضغط على اسمه:", view=VoteView(session.players))
+    @discord.ui.button(label="إزالة", style=discord.ButtonStyle.danger)
+    async def delete(self, i: discord.Interaction, b: discord.ui.Button):
+        session.players = []
+        session.active = False
+        await i.response.edit_message(embed=session.get_embed())
 
 @bot.event
 async def on_ready():
-    print(f'✅ النظام الاحترافي يعمل الآن: {bot.user}')
+    print(f'✅ نظام {bot.user} يعمل بكامل قوته!')
 
 @bot.command()
 async def لعبه(ctx):
-    embed = discord.Embed(
-        title="🎮 نظام 'برّا السالفة' الاحترافي",
-        description="استخدم الأزرار فقط للتحكم في اللعبة.",
-        color=discord.Color.red()
-    )
-    await ctx.send(embed=embed, view=MainGameView())
+    await ctx.send(embed=session.get_embed(), view=MainGameView())
 
-# تشغيل البوت باستخدام متغير البيئة (الذي وضعته في موقع الاستضافة)
+# تشغيل البوت عبر توكن مخفي في الموقع
 bot.run(os.environ.get('TOKEN'))
