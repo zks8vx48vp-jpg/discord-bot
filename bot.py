@@ -7,40 +7,43 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-class GamesView(discord.ui.View):
+# واجهة الألعاب الجماعية الاحترافية
+class CollectiveGamesView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(label="🔢 تخمين الرقم", style=discord.ButtonStyle.primary)
-    async def guess(self, i: discord.Interaction, b: discord.ui.Button):
-        num = random.randint(1, 50)
-        await i.response.send_message(f"🎯 **تحدي الذكاء:** الرقم السري الذي اخترته هو: **{num}**.. هل كنت تتوقعه يا بطل؟", ephemeral=True)
+    @discord.ui.button(label="🕵️‍♂️ من الجاسوس؟", style=discord.ButtonStyle.danger)
+    async def spy_game(self, i: discord.Interaction, b: discord.ui.Button):
+        await i.response.send_message("🕵️‍♂️ **تنبيه:** ابدأ الآن بإرسال الكلمات السرية للأعضاء! الجاسوس بيننا.. استعدوا للتحقيق! 🔍", ephemeral=False)
 
-    @discord.ui.button(label="🧠 تحدي الألغاز", style=discord.ButtonStyle.secondary)
-    async def brain(self, i: discord.Interaction, b: discord.ui.Button):
-        await i.response.send_message("🧩 **لغز اليوم:** أنا لي أسنان كثيرة ولكني لا أعض، فمن أنا؟ (فكر جيداً قبل أن تسألني!)", ephemeral=True)
+    @discord.ui.button(label="⚡ تحدي السرعة", style=discord.ButtonStyle.primary)
+    async def speed_game(self, i: discord.Interaction, b: discord.ui.Button):
+        words = ["برمجة", "ديسكورد", "احتراف", "تحدي"]
+        await i.response.send_message(f"🚀 **تحدي السرعة:** أول من يكتب كلمة **{random.choice(words)}** في الشات هو الفائز! استعدوا! 🔥", ephemeral=False)
 
-    @discord.ui.button(label="✨ حظك اليوم", style=discord.ButtonStyle.success)
-    async def luck(self, i: discord.Interaction, b: discord.ui.Button):
-        fortunes = ["اليوم تبتسم لك الدنيا! 🌟", "فرصة ذهبية في طريقها إليك.. استعد! 🚀", "يوم مليء بالإنجازات والنجاح! 🏆"]
-        await i.response.send_message(f"🔮 **نصيبك من الحظ:** {random.choice(fortunes)}", ephemeral=True)
+    @discord.ui.button(label="🔮 توقعات الجماعة", style=discord.ButtonStyle.success)
+    async def prediction(self, i: discord.Interaction, b: discord.ui.Button):
+        await i.response.send_message("🔮 **توقعاتنا:** هل أنتم جاهزون لمعرفة من سيحقق أكبر إنجاز في السيرفر اليوم؟ اكتبوا 'أنا' للمشاركة! 🌟", ephemeral=False)
 
-    @discord.ui.button(label="🏎️ سباق السرعة", style=discord.ButtonStyle.danger)
-    async def race(self, i: discord.Interaction, b: discord.ui.Button):
-        await i.response.send_message("🔥 **سباق السرعة:** انطلقت السيارات! القوة والسرعة هي عنوانك اليوم.. أنت الفائز بجدارة! 🏆", ephemeral=True)
+# تفعيل الألعاب بكلمة "ألعاب"
+@bot.event
+async def on_message(message):
+    if message.author == bot.user:
+        return
 
-@bot.command()
-async def games(ctx):
-    embed = discord.Embed(
-        title="🎮 مركز الألعاب التفاعلي",
-        description="أهلاً بك في عالم التحدي! اختر لعبتك المفضلة من الأزرار بالأسفل، واصنع يومك بلمسة واحدة. 🔥",
-        color=discord.Color.gold()
-    )
-    embed.set_footer(text="صُمم بكل حب لتجربة احترافية ✨")
-    await ctx.send(embed=embed, view=GamesView())
+    if "ألعاب" in message.content or "تحدي" in message.content:
+        embed = discord.Embed(
+            title="🎮 مركز التحديات الجماعية",
+            description="مرحباً بكم يا أبطال! الساحة جاهزة.. من سينتصر اليوم؟ اختر التحدي وابدأ الحماس! 🔥",
+            color=discord.Color.dark_gold()
+        )
+        embed.set_footer(text="نظام الألعاب الجماعية الاحترافي - استمتعوا!")
+        await message.reply(embed=embed, view=CollectiveGamesView())
+
+    await bot.process_commands(message)
 
 @bot.event
 async def on_ready():
-    print(f'✅ البوت في حالة تأهب قصوى ويعمل بنجاح: {bot.user}')
+    print(f'✅ النظام الاحترافي يعمل بكفاءة: {bot.user}')
 
 bot.run(os.environ.get('TOKEN'))
