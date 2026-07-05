@@ -7,88 +7,83 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-class SpyGame:
+# قاعدة بيانات التصنيفات (موسعة جداً)
+CATEGORIES = {
+    "حيوانات": ["نمر", "أسد", "زرافة", "فيل", "قرد", "دب", "ثعلب", "ذئب", "تمساح"],
+    "قيمرز": ["سوني", "إكس بوكس", "بي سي", "نينتندو", "فورت نايت", "ماينكرافت", "فيفا", "قراند"],
+    "أكلات": ["كبسة", "برجر", "بيتزا", "شاورما", "سوشي", "ماندي", "كباب", "ستيك"],
+    "أنمي": ["ناروتو", "ون بيس", "هجوم العمالقة", "ديث نوت", "قاتل الشياطين"],
+    "سيارات": ["مرسيدس", "بي إم دبليو", "فيراري", "لامبورغيني", "تويوتا", "نيسان"]
+}
+
+class GameSession:
     def __init__(self):
         self.players = []
-        self.topic = "لم يتم الاختيار"
-        self.spy_count = 1
-        self.categories = {
-            "حيوانات": ["نمر", "أسد", "فهد", "ذئب", "زرافة", "فيل", "قرد"],
-            "قيمرز": ["سوني", "إكس بوكس", "بي سي", "نينتندو", "فورت نايت"],
-            "أكلات": ["كبسة", "برجر", "بيتزا", "شاورما", "سوشي"]
-        }
+        self.spy = None
+        self.word = None
+        self.topic = None
 
-    def get_embed(self):
-        player_list = "\n".join([f"BBB@ • {p.name}" for p in self.players]) if self.players else "لا يوجد مشاركين"
-        embed = discord.Embed(title="🎮 لعبة برّا السالفة", color=discord.Color.dark_theme())
-        embed.add_field(name="المشاركون", value=player_list, inline=False)
-        embed.add_field(name="الأدوار", value=f"🕵️‍♂️ برّا السالفة: {self.spy_count}\n👤 جوا السالفة: {len(self.players) - self.spy_count if len(self.players) > 0 else 0}", inline=False)
-        embed.set_footer(text="BBB @ System")
-        return embed
+session = GameSession()
 
-session = SpyGame()
+class CategoryView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        # أزرار التصنيفات
+        for cat in CATEGORIES.keys():
+            self.add_item(discord.ui.Button(label=cat, custom_id=cat, style=discord.ButtonStyle.secondary))
+
+    async def interaction_check(self, i: discord.Interaction) -> bool:
+        cat = i.data['custom_id']
+        session.topic = cat
+        session.word = random.choice(CATEGORIES[cat])
+        session.spy = random.choice(session.players)
+        
+        # إنشاء الروم
+        guild = i.guild
+        channel = await guild.create_text_channel(f"برّا-السالفة-{random.randint(1,99)}")
+        
+        # الرسائل بالخاص
+        for p in session.players:
+            if p == session.spy:
+                await p.send("🕵️‍♂️ **أنت برّا السالفة!**")
+            else:
+                await p.send(f"✅ **أنت جوا السالفة!**\nالتصنيف: {session.topic}\nالكلمة: **{session.word}**")
+        
+        await i.response.send_message(f"🔥 بدأت اللعبة! الروم: {channel.mention}", ephemeral=False)
+        return True
 
 class MainView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    # الصف الأول: تأكيد وحذف
     @discord.ui.button(label="تأكيد", style=discord.ButtonStyle.green, row=0)
     async def confirm(self, i: discord.Interaction, b: discord.ui.Button):
         if len(session.players) < 3:
             return await i.response.send_message("❌ اقل شيء 3 لاعبين!", ephemeral=True)
-        # هنا تظهر قائمة اختيار التصنيفات بعد التأكيد
-        await i.response.edit_message(content="🎯 اختر التصنيف:", view=CategoryView())
+        await i.response.edit_message(content="🎯 اختر التصنيف لبدء اللعبة:", view=CategoryView())
 
     @discord.ui.button(label="حذف", style=discord.ButtonStyle.danger, row=0)
     async def delete(self, i: discord.Interaction, b: discord.ui.Button):
         session.players = []
-        await i.response.edit_message(embed=session.get_embed())
+        await i.response.edit_message(content="تم تصفير اللعبة، ابدأ من جديد!", view=MainView())
 
-    # الصف الثاني: إضافة وإزالة
     @discord.ui.button(label="إضافة +", style=discord.ButtonStyle.secondary, row=1)
     async def add(self, i: discord.Interaction, b: discord.ui.Button):
-        session.spy_count += 1
-        await i.response.edit_message(embed=session.get_embed())
+        await i.response.send_message("تم تفعيل وضع الإضافة!", ephemeral=True)
 
     @discord.ui.button(label="إزالة -", style=discord.ButtonStyle.secondary, row=1)
-    async def sub(self, i: discord.Interaction, b: discord.ui.Button):
-        if session.spy_count > 1: session.spy_count -= 1
-        await i.response.edit_message(embed=session.get_embed())
-    
+    async def remove(self, i: discord.Interaction, b: discord.ui.Button):
+        await i.response.send_message("تم تفعيل وضع الإزالة!", ephemeral=True)
+
     @discord.ui.button(label="انضم للعبة", style=discord.ButtonStyle.primary, row=2)
     async def join(self, i: discord.Interaction, b: discord.ui.Button):
         if i.user not in session.players:
             session.players.append(i.user)
-            await i.response.edit_message(embed=session.get_embed())
-
-class CategoryView(discord.ui.View):
-    def __init__(self):
-        super().__init__()
-        for cat in session.categories.keys():
-            self.add_item(discord.ui.Button(label=cat, custom_id=cat))
-
-    async def interaction_check(self, i: discord.Interaction) -> bool:
-        cat = i.data['custom_id']
-        word = random.choice(session.categories[cat])
-        
-        # إنشاء الروم
-        channel = await i.guild.create_text_channel("برّا-السالفة")
-        
-        # توزيع الأدوار
-        spies = random.sample(session.players, session.spy_count)
-        for p in session.players:
-            if p in spies:
-                await p.send("🕵️‍♂️ **أنت برّا السالفة!**")
-            else:
-                await p.send(f"✅ **أنت جوا السالفة!** التصنيف: {cat}، الكلمة: **{word}**")
-        
-        await i.response.edit_message(content=f"🔥 بدأت اللعبة في {channel.mention}", embed=None, view=None)
-        return True
+            msg = f"🎮 لعبة برّا السالفة\nالمشاركون ({len(session.players)}/10):\n" + "\n".join([f"BBB@ • {p.name}" for p in session.players])
+            await i.response.edit_message(content=msg)
 
 @bot.command()
 async def لعبه(ctx):
-    session.players = []
-    await ctx.send(embed=session.get_embed(), view=MainView())
+    await ctx.send("🎮 **لعبة برّا السالفة**\nاضغط انضم للبدء:", view=MainView())
 
 bot.run(os.environ.get('TOKEN'))
